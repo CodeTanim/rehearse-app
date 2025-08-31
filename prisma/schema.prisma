@@ -1,0 +1,125 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  password      String?   // For credentials auth
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts     Account[]
+  sessions     Session[]
+  skillFolders SkillFolder[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
+
+model SkillFolder {
+  id          String   @id @default(cuid())
+  name        String   
+  description String?  
+  color       String?  @default("#E6A045")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  userId      String   @map("user_id")
+  
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files   File[]
+  notes   Note[]
+  qaPairs QAPair[]
+  
+  @@unique([userId, name])
+  @@map("skill_folders")
+}
+
+model File {
+  id             String      @id @default(cuid())
+  filename       String
+  originalName   String      @map("original_name")
+  mimeType       String      @map("mime_type")
+  size           Int
+  uploadedAt     DateTime    @default(now()) @map("uploaded_at")
+  skillFolderId  String      @map("skill_folder_id")
+  
+  skillFolder SkillFolder @relation(fields: [skillFolderId], references: [id], onDelete: Cascade)
+  
+  @@map("files")
+}
+
+model Note {
+  id             String      @id @default(cuid())
+  title          String
+  content        String
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  skillFolderId  String      @map("skill_folder_id")
+  
+  skillFolder SkillFolder @relation(fields: [skillFolderId], references: [id], onDelete: Cascade)
+  
+  @@map("notes")
+}
+
+model QAPair {
+  id             String      @id @default(cuid())
+  question       String
+  answer         String
+  difficulty     String?     @default("medium")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  skillFolderId  String      @map("skill_folder_id")
+  
+  skillFolder SkillFolder @relation(fields: [skillFolderId], references: [id], onDelete: Cascade)
+  
+  @@map("qa_pairs")
+}
