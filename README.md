@@ -307,36 +307,4 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 
 ---
 
-## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
-
----
-
-## 👥 Team
-
-Built with ❤️ by [Your Name](https://github.com/yourusername)
-
-- **Frontend Development**: React, Next.js, TypeScript
-- **Backend Development**: Node.js, PostgreSQL, Prisma
-- **AI Integration**: OpenAI API, Python microservices
-- **Design**: Modern UI/UX with Tailwind CSS
-
----
-
-## 📞 Support
-
-- 📧 Email: support@rehearse-app.com
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/rehearse-app/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/rehearse-app/discussions)
-- 📖 Documentation: [docs.rehearse-app.com](https://docs.rehearse-app.com)
-
----
-
-<div align="center">
-
-**[⬆ Back to Top](#-rehearse)**
-
-Made with 🧠 and ☕ by developers who understand the struggle of knowledge retention.
-
-</div>
