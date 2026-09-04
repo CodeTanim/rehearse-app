@@ -10,9 +10,11 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)
 
-[Live Demo](#) • [Documentation](#) • [Report Bug](#) • [Request Feature](#)
+[Live Demo](https://rehearse-app-smoky.vercel.app) • [Documentation](#) • [Report Bug](#) • [Request Feature](#)
 
 </div>
+
+> **Hosted demo:** This is a stateless synthetic product walkthrough. Authentication, uploads, APIs, and persistent storage are intentionally disabled; inputs reset on refresh.
 
 ---
 
@@ -306,5 +308,3 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 - **GDPR Compliant**: Data export and deletion tools
 
 ---
-
-
