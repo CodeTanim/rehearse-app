@@ -6,7 +6,7 @@ The complete source-first loop now works in the local prototype. Skill Leaves be
 
 [Try the live portfolio demo](https://rehearse-app-smoky.vercel.app)
 
-The hosted Vercel build is a stateless walkthrough with synthetic data. It demonstrates recall, self-grading, an explained **Well learned** state, review scheduling, and the Skill Tree without exposing accounts, uploads, APIs, or persistent storage.
+The hosted Vercel build is a stateless walkthrough with synthetic data. It demonstrates recall, self-grading, an explained **Well learned** state, review scheduling, and the Skill Tree without exposing accounts, uploads, APIs, or persistent storage. Inputs reset on refresh.
 
 ## Safety status
 
