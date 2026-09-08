@@ -1,8 +1,31 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useId, useRef, useState } from 'react'
+import { Edit3, Eye, Save, Trash2, X } from 'lucide-react'
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Note, CreateNoteData, UpdateNoteData } from '@/lib/types/file'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { SafeMarkdown } from '@/components/ui/safe-markdown'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  getNoteContentError,
+  getNoteTitleError,
+  NOTE_CONTENT_MAX_LENGTH,
+  NOTE_TITLE_MAX_LENGTH,
+} from '@/lib/note-constraints'
+import { CreateNoteData, Note, UpdateNoteData } from '@/lib/types/file'
 
 interface NoteEditorProps {
   note?: Note | null
@@ -14,358 +37,340 @@ interface NoteEditorProps {
   mode?: 'create' | 'edit'
 }
 
+interface NoteEditorDialogProps extends Omit<NoteEditorProps, 'isOpen' | 'mode'> {
+  mode: 'create' | 'edit'
+  onCaptureReturnFocus: () => void
+}
+
 export function NoteEditor({
   note,
   isOpen,
+  mode = note ? 'edit' : 'create',
+  ...props
+}: NoteEditorProps) {
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+
+  function captureReturnFocus() {
+    const activeElement = document.activeElement
+    returnFocusRef.current =
+      activeElement instanceof HTMLElement && activeElement !== document.body
+        ? activeElement
+        : null
+  }
+
+  function closeAndRestoreFocus() {
+    const returnTarget = returnFocusRef.current
+    props.onClose()
+
+    requestAnimationFrame(() => {
+      const fallback = document.querySelector<HTMLElement>('[data-note-list-create]')
+        ?? document.querySelector<HTMLElement>('[data-slot="tabs-trigger"][data-state="active"]')
+      const focusTarget = returnTarget?.isConnected ? returnTarget : fallback
+      focusTarget?.focus({ preventScroll: true })
+      returnFocusRef.current = null
+    })
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <NoteEditorDialog
+      key={`${mode}:${note?.id ?? 'new'}`}
+      {...props}
+      note={note}
+      mode={mode}
+      onClose={closeAndRestoreFocus}
+      onCaptureReturnFocus={captureReturnFocus}
+    />
+  )
+}
+
+function NoteEditorDialog({
+  note,
   onClose,
   onSave,
   onDelete,
   isLoading = false,
-  mode = note ? 'edit' : 'create'
-}: NoteEditorProps) {
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [isDirty, setIsDirty] = useState(false)
+  mode,
+  onCaptureReturnFocus,
+}: NoteEditorDialogProps) {
+  const initialTitle = note?.title ?? ''
+  const initialContent = note?.content ?? ''
+  const [title, setTitle] = useState(initialTitle)
+  const [content, setContent] = useState(initialContent)
   const [isPreview, setIsPreview] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const [operationError, setOperationError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const contentTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const contentInputRef = useRef<HTMLTextAreaElement>(null)
+  const formId = useId()
+  const titleId = `${formId}-title`
+  const titleHintId = `${formId}-title-hint`
+  const contentId = `${formId}-content`
+  const contentHintId = `${formId}-content-hint`
 
-  // Initialize form data
-  useEffect(() => {
-    if (isOpen) {
-      setTitle(note?.title || '')
-      setContent(note?.content || '')
-      setIsDirty(false)
-      setIsPreview(false)
-      setShowDeleteConfirm(false)
-      
-      // Focus title input for new notes, content for existing notes
-      setTimeout(() => {
-        if (mode === 'create') {
-          titleInputRef.current?.focus()
-        } else {
-          contentTextareaRef.current?.focus()
-        }
-      }, 100)
-    }
-  }, [isOpen, note, mode])
+  const isDirty = title !== initialTitle || content !== initialContent
+  const isBusy = isLoading || isSaving
+  const titleError = getNoteTitleError(title)
+  const contentError = getNoteContentError(content)
+  const isValid = !titleError && !contentError
 
-  // Track dirty state
-  useEffect(() => {
-    const originalTitle = note?.title || ''
-    const originalContent = note?.content || ''
-    setIsDirty(title !== originalTitle || content !== originalContent)
-  }, [title, content, note])
+  function requestClose() {
+    if (isBusy) return
+    if (isDirty) setShowDiscardConfirm(true)
+    else onClose()
+  }
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return
+  async function handleSave() {
+    setOperationError(null)
 
-      // Cmd/Ctrl + S to save
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault()
-        if (isDirty && !isSaving) {
-          handleSave()
-        }
-      }
-
-      // Cmd/Ctrl + P to toggle preview
-      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
-        e.preventDefault()
-        setIsPreview(!isPreview)
-      }
-
-      // Escape to close (with confirmation if dirty)
-      if (e.key === 'Escape') {
-        if (isDirty) {
-          if (confirm('You have unsaved changes. Are you sure you want to close?')) {
-            onClose()
-          }
-        } else {
-          onClose()
-        }
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, isDirty, isSaving, isPreview, onClose])
-
-  const handleSave = useCallback(async () => {
-    if (!title.trim()) {
-      alert('Please enter a title for your note')
+    if (titleError) {
       titleInputRef.current?.focus()
+      return
+    }
+
+    if (contentError) {
+      if (isPreview) {
+        setIsPreview(false)
+        requestAnimationFrame(() => contentInputRef.current?.focus())
+      } else {
+        contentInputRef.current?.focus()
+      }
       return
     }
 
     setIsSaving(true)
     try {
-      if (mode === 'create') {
-        await onSave({ title: title.trim(), content: content.trim() })
-      } else {
-        await onSave({ title: title.trim(), content: content.trim() })
-      }
-      setIsDirty(false)
+      await onSave({ title: title.trim(), content: content.trim() })
       onClose()
-    } catch (error) {
-      console.error('Failed to save note:', error)
-      alert('Failed to save note. Please try again.')
+    } catch (saveError) {
+      console.error('Failed to save note:', saveError)
+      setOperationError('Not saved. Try again.')
     } finally {
       setIsSaving(false)
     }
-  }, [title, content, mode, onSave, onClose])
+  }
 
-  const handleDelete = useCallback(async () => {
+  async function handleDelete() {
     if (!onDelete) return
-    
+
+    setDeleteError(null)
     setIsSaving(true)
     try {
       await onDelete()
       setShowDeleteConfirm(false)
       onClose()
-    } catch (error) {
-      console.error('Failed to delete note:', error)
-      alert('Failed to delete note. Please try again.')
+    } catch (deleteError) {
+      console.error('Failed to delete note:', deleteError)
+      setDeleteError('Not deleted. Try again.')
     } finally {
       setIsSaving(false)
     }
-  }, [onDelete, onClose])
+  }
 
-  const handleClose = useCallback(() => {
-    if (isDirty) {
-      if (confirm('You have unsaved changes. Are you sure you want to close?')) {
-        onClose()
-      }
-    } else {
-      onClose()
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault()
+      if (isDirty && !isBusy) void handleSave()
+    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'p') {
+      event.preventDefault()
+      setIsPreview((current) => !current)
     }
-  }, [isDirty, onClose])
-
-  // Auto-resize textarea
-  const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value)
-    
-    // Auto-resize
-    const textarea = e.target
-    textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight}px`
-  }, [])
-
-  // Simple markdown preview rendering
-  const renderMarkdownPreview = useCallback((markdown: string) => {
-    // Basic markdown rendering - in a real app, you'd use a proper markdown library
-    return markdown
-      .replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold mb-4">$1</h1>')
-      .replace(/^## (.*$)/gm, '<h2 class="text-xl font-semibold mb-3">$1</h2>')
-      .replace(/^### (.*$)/gm, '<h3 class="text-lg font-medium mb-2">$1</h3>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-      .replace(/`(.*?)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-sm font-mono">$1</code>')
-      .replace(/^\* (.*$)/gm, '<li class="ml-4">• $1</li>')
-      .replace(/^\d+\. (.*$)/gm, '<li class="ml-4">$1</li>')
-      .replace(/\n\n/g, '</p><p class="mb-4">')
-      .replace(/^(?!<[h1-6]|<li|<\/p>)(.*$)/gm, '<p class="mb-4">$1</p>')
-  }, [])
-
-  if (!isOpen) return null
+  }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
-      <div className="flex min-h-screen items-center justify-center p-4">
-        {/* Backdrop */}
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-          onClick={handleClose}
-        />
-        
-        {/* Modal */}
-        <div className="relative bg-card rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] mx-auto flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-border bg-card">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded bg-accent/10 flex items-center justify-center">
-                <span className="text-lg">📝</span>
-              </div>
-              <div>
-                <h3 className="font-medium text-foreground">
-                  {mode === 'create' ? 'Create New Note' : 'Edit Note'}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {isDirty ? 'Unsaved changes' : 'All changes saved'}
+    <>
+      <Dialog open onOpenChange={(open) => !open && requestClose()}>
+        <DialogContent
+          size="xl"
+          showCloseButton={false}
+          className="flex h-[min(90dvh,54rem)] flex-col !overflow-hidden"
+          onKeyDown={handleKeyDown}
+          onOpenAutoFocus={(event) => {
+            onCaptureReturnFocus()
+            event.preventDefault()
+            titleInputRef.current?.focus()
+          }}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
+          <div className="flex flex-col gap-4 border-b-[3px] border-foreground bg-[var(--paper-note)] p-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <DialogTitle>{mode === 'create' ? 'New note' : 'Edit note'}</DialogTitle>
+              <DialogDescription className="sr-only">
+                Add a title and note, then save.
+              </DialogDescription>
+              {isDirty || mode === 'edit' ? (
+                <p className="mt-1 text-sm text-foreground/70" aria-live="polite">
+                  {isDirty ? 'Unsaved' : 'Saved'}
                 </p>
-              </div>
+              ) : null}
             </div>
-            
-            <div className="flex items-center space-x-2">
-              {/* Preview Toggle */}
+
+            <div className="flex flex-wrap items-center gap-2">
               <Button
-                variant={isPreview ? "default" : "outline"}
+                type="button"
+                variant={isPreview ? 'secondary' : 'outline'}
                 size="sm"
-                onClick={() => setIsPreview(!isPreview)}
-                disabled={isSaving}
+                onClick={() => setIsPreview((current) => !current)}
+                disabled={isBusy}
+                aria-pressed={isPreview}
               >
-                {isPreview ? '📝 Edit' : '👁️ Preview'}
+                {isPreview ? <Edit3 className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+                {isPreview ? 'Edit' : 'Preview'}
               </Button>
-              
-              {/* Save Button */}
               <Button
-                onClick={handleSave}
-                disabled={!isDirty || !title.trim() || isSaving}
+                type="button"
+                variant="accent"
                 size="sm"
-                className="bg-accent hover:bg-accent/90 text-accent-foreground"
+                onClick={() => void handleSave()}
+                disabled={!isDirty || !isValid || isBusy}
+                isLoading={isBusy}
               >
-                {isSaving ? (
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                ) : (
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                )}
-                {mode === 'create' ? 'Create Note' : 'Save Changes'}
+                {!isBusy ? <Save className="size-4" aria-hidden="true" /> : null}
+                Save
               </Button>
-              
-              {/* Delete Button */}
-              {mode === 'edit' && onDelete && (
+              {mode === 'edit' && onDelete ? (
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={isSaving}
-                  className="text-destructive hover:text-destructive/80"
+                  type="button"
+                  variant="destructive"
+                  size="icon-sm"
+                  onClick={() => {
+                    setDeleteError(null)
+                    setShowDeleteConfirm(true)
+                  }}
+                  disabled={isBusy}
+                  aria-label="Delete note"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
+                  <Trash2 className="size-4" aria-hidden="true" />
                 </Button>
-              )}
-              
-              {/* Close Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClose}
-                disabled={isSaving}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+              ) : null}
+              <Button type="button" variant="outline" size="icon-sm" onClick={requestClose} disabled={isBusy} aria-label="Close note editor">
+                <X className="size-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Title Input */}
-            <div className="p-4 border-b border-border">
-              <input
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 sm:p-6">
+            {operationError ? <Alert variant="destructive" role="alert">{operationError}</Alert> : null}
+
+            <div>
+              <label htmlFor={titleId} className="mb-2 block text-sm font-black">Title</label>
+              <Input
                 ref={titleInputRef}
-                type="text"
-                placeholder="Note title..."
+                id={titleId}
+                placeholder="What did you learn?"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={isSaving}
-                className="w-full text-xl font-semibold bg-transparent border-none outline-none placeholder-muted-foreground text-foreground"
+                onChange={(event) => {
+                  setTitle(event.target.value)
+                  setOperationError(null)
+                }}
+                maxLength={NOTE_TITLE_MAX_LENGTH}
+                required
+                aria-invalid={Boolean(titleError)}
+                aria-describedby={titleHintId}
+                disabled={isBusy}
+                className="text-lg font-black"
               />
+              <p
+                id={titleHintId}
+                className={`mt-1.5 flex flex-wrap justify-between gap-2 text-xs font-bold ${titleError ? 'error-text' : 'text-muted-foreground'}`}
+              >
+                <span aria-live="polite">{titleError ?? 'Required'}</span>
+                <span>{title.length}/{NOTE_TITLE_MAX_LENGTH}</span>
+              </p>
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-hidden">
+            <div className="min-h-0 flex-1">
               {isPreview ? (
-                // Preview Mode
-                <div className="h-full overflow-auto p-6 prose prose-sm max-w-none">
-                  <div 
-                    className="text-foreground"
-                    dangerouslySetInnerHTML={{ 
-                      __html: content ? renderMarkdownPreview(content) : '<p class="text-muted-foreground italic">Nothing to preview...</p>'
-                    }}
-                  />
+                <p id={`${contentId}-label`} className="mb-2 block text-sm font-black">Preview</p>
+              ) : (
+                <label htmlFor={contentId} className="mb-2 block text-sm font-black">Note</label>
+              )}
+              {isPreview ? (
+                <div
+                  className="h-[calc(100%-1.75rem)] overflow-auto border-[3px] border-foreground bg-card p-4 sm:p-6"
+                  aria-labelledby={`${contentId}-label`}
+                  aria-describedby={contentHintId}
+                >
+                  {content ? <SafeMarkdown content={content} className="text-foreground" /> : <p className="italic text-muted-foreground">Nothing yet.</p>}
                 </div>
               ) : (
-                // Edit Mode
-                <div className="h-full p-4">
-                  <textarea
-                    ref={contentTextareaRef}
-                    placeholder="Write your note content here... (Markdown supported)"
-                    value={content}
-                    onChange={handleContentChange}
-                    disabled={isSaving}
-                    className="w-full h-full bg-transparent border-none outline-none resize-none placeholder-muted-foreground text-foreground font-mono text-sm leading-relaxed"
-                  />
-                </div>
+                <Textarea
+                  ref={contentInputRef}
+                  id={contentId}
+                  placeholder="Takeaway, question, example, or reflection…"
+                  value={content}
+                  onChange={(event) => {
+                    setContent(event.target.value)
+                    setOperationError(null)
+                  }}
+                  maxLength={NOTE_CONTENT_MAX_LENGTH}
+                  required
+                  aria-invalid={Boolean(contentError)}
+                  aria-describedby={contentHintId}
+                  disabled={isBusy}
+                  className="h-[calc(100%-1.75rem)] min-h-48 resize-none font-mono text-sm leading-6"
+                />
               )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 border-t border-border bg-muted/30">
-              <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <div className="flex items-center space-x-4">
-                  <span>{content.length} characters</span>
-                  <span>{content.split(/\s+/).filter(word => word.length > 0).length} words</span>
-                  <span>{content.split('\n').length} lines</span>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <span>Ctrl+S to save</span>
-                  <span>Ctrl+P to preview</span>
-                  <span>Esc to close</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-60 overflow-hidden">
-          <div className="flex min-h-screen items-center justify-center p-4">
-            <div 
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={() => setShowDeleteConfirm(false)}
-            />
-            <div className="relative bg-card rounded-lg shadow-2xl max-w-md w-full mx-auto p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-medium text-foreground">Delete Note</h3>
-                  <p className="text-sm text-muted-foreground">This action cannot be undone</p>
-                </div>
-              </div>
-              
-              <p className="text-foreground mb-6">
-                Are you sure you want to delete &quot;<strong>{title}</strong>&quot;?
+              <p
+                id={contentHintId}
+                className={`mt-1.5 flex flex-wrap justify-between gap-2 text-xs font-bold ${contentError ? 'error-text' : 'text-muted-foreground'}`}
+              >
+                <span aria-live="polite">{contentError ?? 'Required · Markdown'}</span>
+                <span>{content.length.toLocaleString('en-US')}/{NOTE_CONTENT_MAX_LENGTH.toLocaleString('en-US')}</span>
               </p>
-              
-              <div className="flex items-center justify-end space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                  ) : null}
-                  Delete Note
-                </Button>
-              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+
+          <div className="hidden justify-end border-t-[3px] border-foreground bg-muted px-4 py-3 text-xs font-bold text-muted-foreground sm:flex">
+            <span>Ctrl/⌘ S save · Ctrl/⌘ P preview</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={showDeleteConfirm}
+        onOpenChange={(open) => {
+          if (!open && !isBusy) {
+            setDeleteError(null)
+            setShowDeleteConfirm(false)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{title}”?</AlertDialogTitle>
+            <AlertDialogDescription>This note will be permanently deleted. This can’t be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError ? (
+            <Alert variant="destructive" role="alert" className="mx-6 mb-5">
+              {deleteError}
+            </Alert>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" disabled={isBusy} onClick={(event) => { event.preventDefault(); void handleDelete() }}>
+              {isBusy ? 'Deleting…' : 'Delete note'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>Unsaved edits will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={onClose}>Discard changes</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

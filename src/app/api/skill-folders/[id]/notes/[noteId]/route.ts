@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { NOTE_CONTENT_MAX_LENGTH, NOTE_TITLE_MAX_LENGTH } from '@/lib/note-constraints'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const updateNoteSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters').optional(),
-  content: z.string().min(1, 'Content is required').optional(),
+  title: z
+    .string()
+    .max(NOTE_TITLE_MAX_LENGTH, `Title must be ${NOTE_TITLE_MAX_LENGTH} characters or fewer`)
+    .trim()
+    .min(1, 'Title is required')
+    .optional(),
+  content: z
+    .string()
+    .max(
+      NOTE_CONTENT_MAX_LENGTH,
+      `Content must be ${NOTE_CONTENT_MAX_LENGTH.toLocaleString('en-US')} characters or fewer`,
+    )
+    .trim()
+    .min(1, 'Content is required')
+    .optional(),
+}).refine((data) => data.title !== undefined || data.content !== undefined, {
+  message: 'At least one note field is required',
 })
 
 type Params = {
@@ -82,7 +98,12 @@ export async function PATCH(
     }
 
     // Parse and validate request body
-    const body = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
     const validatedData = updateNoteSchema.parse(body)
 
     // If title is being updated, check for duplicates

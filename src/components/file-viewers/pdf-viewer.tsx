@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { AlertTriangle, ChevronLeft, ChevronRight, LoaderCircle, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import dynamic from 'next/dynamic'
 
@@ -8,8 +9,9 @@ import dynamic from 'next/dynamic'
 const Document = dynamic(() => import('react-pdf').then(mod => ({ default: mod.Document })), { 
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-full">
-      <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+    <div className="flex h-full items-center justify-center" role="status">
+      <LoaderCircle className="size-8 animate-spin text-accent" aria-hidden="true" />
+      <span className="sr-only">Loading PDF viewer…</span>
     </div>
   )
 })
@@ -26,40 +28,34 @@ interface PDFViewerProps {
 export function PDFViewer({ fileUrl, fileName }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number>(0)
   const [pageNumber, setPageNumber] = useState<number>(1)
-  const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [scale, setScale] = useState<number>(1.0)
-  const [isClient, setIsClient] = useState(false)
 
   // Set up PDF.js worker only on client side
   useEffect(() => {
-    console.log('📄 PDFViewer mounted:', { fileUrl, fileName })
-    setIsClient(true)
-    if (typeof window !== 'undefined') {
-      import('react-pdf').then((mod) => {
-        mod.pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${mod.pdfjs.version}/build/pdf.worker.min.mjs`
-        console.log('📄 PDF.js worker configured')
-      })
+    let active = true
+
+    void import('react-pdf').then((mod) => {
+      if (active) {
+        mod.pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+          'pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url,
+        ).toString()
+      }
+    })
+
+    return () => {
+      active = false
     }
   }, [])
 
-  const onDocumentLoadProgress = useCallback(() => {
-    console.log('🔄 PDF loading started')
-    setLoading(true)
-    setError(null)
-  }, [])
-
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    console.log('✅ PDF loaded successfully:', numPages, 'pages')
     setNumPages(numPages)
-    setLoading(false)
     setError(null)
   }, [])
 
-  const onDocumentLoadError = useCallback((error: Error) => {
-    console.error('❌ PDF failed to load:', error)
-    setError('Failed to load PDF document')
-    setLoading(false)
+  const onDocumentLoadError = useCallback(() => {
+    setError('Couldn’t open this PDF. Download it instead.')
   }, [])
 
   const goToPrevPage = useCallback(() => {
@@ -82,91 +78,55 @@ export function PDFViewer({ fileUrl, fileName }: PDFViewerProps) {
     setScale(1.0)
   }, [])
 
-  if (!isClient) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading PDF viewer...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading PDF...</p>
-        </div>
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
           <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-6 h-6 text-destructive" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
+            <AlertTriangle className="size-6 text-destructive" aria-hidden="true" />
           </div>
           <p className="text-destructive font-medium">{error}</p>
-          <p className="text-muted-foreground text-sm mt-1">Please try downloading the file instead</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" aria-label={`PDF viewer for ${fileName}`}>
       {/* PDF Controls */}
-      <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
-        <div className="flex items-center space-x-4">
-          <h3 className="font-medium text-foreground truncate max-w-xs">{fileName}</h3>
-          <span className="text-sm text-muted-foreground">
-            {numPages} page{numPages !== 1 ? 's' : ''}
-          </span>
-        </div>
+      <div className="flex flex-col gap-3 border-b-[3px] border-foreground bg-muted p-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-sm font-bold text-muted-foreground">
+          {numPages} page{numPages !== 1 ? 's' : ''}
+        </span>
         
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Zoom Controls */}
-          <div className="flex items-center space-x-1">
-            <Button variant="outline" size="sm" onClick={zoomOut} disabled={scale <= 0.5}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-              </svg>
+          <div className="flex items-center gap-2" role="group" aria-label="PDF zoom">
+            <Button type="button" variant="outline" size="icon-sm" onClick={zoomOut} disabled={scale <= 0.5} aria-label="Zoom out">
+              <Minus aria-hidden="true" className="size-4" />
             </Button>
             <span className="text-sm text-muted-foreground min-w-[3rem] text-center">
               {Math.round(scale * 100)}%
             </span>
-            <Button variant="outline" size="sm" onClick={zoomIn} disabled={scale >= 3.0}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+            <Button type="button" variant="outline" size="icon-sm" onClick={zoomIn} disabled={scale >= 3.0} aria-label="Zoom in">
+              <Plus aria-hidden="true" className="size-4" />
             </Button>
-            <Button variant="outline" size="sm" onClick={resetZoom}>
+            <Button type="button" variant="outline" size="sm" onClick={resetZoom}>
               Reset
             </Button>
           </div>
 
           {/* Page Navigation */}
           {numPages > 1 && (
-            <div className="flex items-center space-x-1 border-l border-border pl-2 ml-2">
-              <Button variant="outline" size="sm" onClick={goToPrevPage} disabled={pageNumber <= 1}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+            <div className="flex items-center gap-2 sm:border-l-2 sm:border-foreground/30 sm:pl-3" role="group" aria-label="PDF pages">
+              <Button type="button" variant="outline" size="icon-sm" onClick={goToPrevPage} disabled={pageNumber <= 1} aria-label="Previous page">
+                <ChevronLeft aria-hidden="true" className="size-4" />
               </Button>
               <span className="text-sm text-muted-foreground min-w-[4rem] text-center">
                 {pageNumber} / {numPages}
               </span>
-              <Button variant="outline" size="sm" onClick={goToNextPage} disabled={pageNumber >= numPages}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+              <Button type="button" variant="outline" size="icon-sm" onClick={goToNextPage} disabled={pageNumber >= numPages} aria-label="Next page">
+                <ChevronRight aria-hidden="true" className="size-4" />
               </Button>
             </div>
           )}
@@ -174,13 +134,20 @@ export function PDFViewer({ fileUrl, fileName }: PDFViewerProps) {
       </div>
 
       {/* PDF Content */}
-      <div className="flex-1 overflow-auto bg-gray-100 p-4">
+      <div className="flex-1 overflow-auto bg-muted p-4">
         <div className="flex justify-center">
           <Document
             file={fileUrl}
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onDocumentLoadError}
-            loading={null}
+            loading={(
+              <div className="flex items-center justify-center p-8" role="status">
+                <div className="text-center">
+                  <LoaderCircle className="mx-auto mb-4 size-8 animate-spin text-accent" aria-hidden="true" />
+                  <p className="text-muted-foreground">Loading…</p>
+                </div>
+              </div>
+            )}
             error={null}
           >
             <Page
@@ -188,7 +155,7 @@ export function PDFViewer({ fileUrl, fileName }: PDFViewerProps) {
               scale={scale}
               renderTextLayer={false}
               renderAnnotationLayer={false}
-              className="shadow-lg"
+              className="border-[3px] border-foreground shadow-[5px_5px_0_var(--paper-shadow)]"
             />
           </Document>
         </div>

@@ -2,27 +2,16 @@
 
 export class FileIcons {
   static getFileIcon(mimeType: string): string {
-    if (mimeType.startsWith('image/')) return '🖼️'
-    if (mimeType === 'application/pdf') return '📄'
-    if (mimeType.startsWith('text/')) return '📝'
-    if (mimeType.includes('word')) return '📄'
-    if (mimeType.includes('excel')) return '📊'
-    if (mimeType.includes('powerpoint')) return '📽️'
-    if (mimeType.includes('zip') || mimeType.includes('rar')) return '📦'
-    if (mimeType.includes('audio')) return '🎵'
-    if (mimeType.includes('video')) return '🎬'
-    return '📎'
-  }
-
-  static getFileIconColor(mimeType: string): string {
-    if (mimeType.startsWith('image/')) return '#10B981' // Green
-    if (mimeType === 'application/pdf') return '#EF4444' // Red
-    if (mimeType.startsWith('text/')) return '#8B5CF6' // Purple
-    if (mimeType.includes('word')) return '#2563EB' // Blue
-    if (mimeType.includes('excel')) return '#059669' // Green
-    if (mimeType.includes('powerpoint')) return '#DC2626' // Red
-    if (mimeType.includes('zip') || mimeType.includes('rar')) return '#F59E0B' // Yellow
-    return '#6B7280' // Gray
+    if (mimeType.startsWith('image/')) return 'IMG'
+    if (mimeType === 'application/pdf') return 'PDF'
+    if (mimeType.startsWith('text/')) return 'TXT'
+    if (mimeType.includes('word')) return 'DOC'
+    if (mimeType.includes('excel')) return 'XLS'
+    if (mimeType.includes('powerpoint')) return 'PPT'
+    if (mimeType.includes('zip') || mimeType.includes('rar')) return 'ZIP'
+    if (mimeType.includes('audio')) return 'AUD'
+    if (mimeType.includes('video')) return 'VID'
+    return 'FILE'
   }
 }
 

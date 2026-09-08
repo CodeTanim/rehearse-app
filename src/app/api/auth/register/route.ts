@@ -1,18 +1,34 @@
 import { NextRequest, NextResponse } from "next/server"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
-import { z } from "zod"
-
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-})
+import { ZodError } from "zod"
+import { registerSchema } from "@/lib/auth/validation"
+import {
+  AUTH_RATE_LIMITS,
+  consumeRateLimit,
+  getClientIdentifier,
+} from "@/lib/auth/rate-limit"
 
 export async function POST(request: NextRequest) {
+  const registrationLimit = consumeRateLimit({
+    scope: "registration-client",
+    identifier: getClientIdentifier(request.headers),
+    policy: AUTH_RATE_LIMITS.registrationByClient,
+  })
+
+  if (!registrationLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Please try again later." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(registrationLimit.retryAfterSeconds) },
+      },
+    )
+  }
+
   try {
     const body = await request.json()
-    const { name, email, password } = registerSchema.parse(body)
+    const { name, email, password, timezone = "UTC" } = registerSchema.parse(body)
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -35,6 +51,7 @@ export async function POST(request: NextRequest) {
         name,
         email,
         password: hashedPassword,
+        timezone,
       },
       select: {
         id: true,
@@ -49,7 +66,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    if (error instanceof z.ZodError) {
+    if (error instanceof ZodError) {
       return NextResponse.json(
         { error: error.issues[0].message },
         { status: 400 }

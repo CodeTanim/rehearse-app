@@ -1,75 +1,84 @@
-'use client'
+"use client"
 
-import { useEffect } from 'react'
+import * as React from "react"
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  type DialogSize,
+} from "@/components/ui/dialog"
 
 interface ModalProps {
   isOpen: boolean
   onClose: () => void
   title: string
+  description?: React.ReactNode
   children: React.ReactNode
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: DialogSize
+  returnFocusTo?: React.RefObject<HTMLElement | null>
 }
 
-export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
-    }
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  description,
+  children,
+  size = "md",
+  returnFocusTo,
+}: ModalProps) {
+  const returnFocusRef = React.useRef<HTMLElement | null>(null)
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'hidden'
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-      document.body.style.overflow = 'unset'
-    }
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
-
-  const sizeClasses = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl'
+  function handleOpenChange(open: boolean) {
+    if (!open) onClose()
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
-        {/* Backdrop */}
-        <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-          onClick={onClose}
-        />
-        
-        {/* Modal content */}
-        <div className={`relative bg-card rounded-lg shadow-xl w-full ${sizeClasses[size]} mx-auto`}>
-          {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-border">
-            <h3 className="text-lg font-semibold text-foreground">
-              {title}
-            </h3>
-            <button
-              onClick={onClose}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          {/* Body */}
-          <div className="p-6">
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        size={size}
+        onOpenAutoFocus={(event) => {
+          const content = event.currentTarget as HTMLElement
+          const activeElement = document.activeElement
+          if (!content.contains(activeElement)) {
+            returnFocusRef.current =
+              activeElement instanceof HTMLElement && activeElement !== document.body
+                ? activeElement
+                : null
+          }
+
+          const initialFocusTarget = content.querySelector<HTMLElement>("[data-modal-autofocus]")
+          if (initialFocusTarget) {
+            event.preventDefault()
+            requestAnimationFrame(() => {
+              if (initialFocusTarget.isConnected) {
+                initialFocusTarget.focus({ preventScroll: true })
+              }
+            })
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          const returnTarget = returnFocusTo?.current ?? returnFocusRef.current
+          if (returnTarget?.isConnected) {
+            event.preventDefault()
+            returnTarget.focus()
+          }
+          returnFocusRef.current = null
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription className={description ? undefined : "sr-only"}>
+            {description ?? "Review this dialog, then save your changes or cancel."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-6 py-6">{children}</div>
+      </DialogContent>
+    </Dialog>
   )
 }
+
+export type { ModalProps }

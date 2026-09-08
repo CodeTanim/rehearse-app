@@ -3,7 +3,7 @@ import { SkillFolder, CreateSkillFolderData, UpdateSkillFolderData } from '@/lib
 
 export function useSkillFolders() {
   const [skillFolders, setSkillFolders] = useState<SkillFolder[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchSkillFolders = useCallback(async () => {
@@ -14,13 +14,13 @@ export function useSkillFolders() {
       const response = await fetch('/api/skill-folders')
       
       if (!response.ok) {
-        throw new Error('Failed to fetch skill folders')
+        throw new Error('Couldn’t load folders.')
       }
       
       const data = await response.json()
       setSkillFolders(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
       setIsLoading(false)
     }
@@ -41,14 +41,14 @@ export function useSkillFolders() {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create skill folder')
+        throw new Error(errorData.error || 'Couldn’t create folder.')
       }
       
       const newFolder = await response.json()
       setSkillFolders(prev => [newFolder, ...prev])
       return newFolder
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {
@@ -71,7 +71,7 @@ export function useSkillFolders() {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update skill folder')
+        throw new Error(errorData.error || 'Couldn’t save folder.')
       }
       
       const updatedFolder = await response.json()
@@ -80,7 +80,7 @@ export function useSkillFolders() {
       )
       return updatedFolder
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {
@@ -99,12 +99,12 @@ export function useSkillFolders() {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to delete skill folder')
+        throw new Error(errorData.error || 'Couldn’t delete folder.')
       }
       
       setSkillFolders(prev => prev.filter(folder => folder.id !== id))
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {
@@ -120,12 +120,12 @@ export function useSkillFolders() {
       const response = await fetch(`/api/skill-folders/${id}`)
       
       if (!response.ok) {
-        throw new Error('Failed to fetch skill folder')
+        throw new Error('Couldn’t load folder.')
       }
       
       return await response.json()
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {

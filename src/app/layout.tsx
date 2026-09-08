@@ -1,21 +1,34 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Fraunces, Manrope } from "next/font/google";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
+import { isPortfolioDemoEnabled } from "@/lib/portfolio-demo";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const bodyFont = Manrope({
   subsets: ["latin"],
+  variable: "--font-rehearse-sans",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const displayFont = Fraunces({
   subsets: ["latin"],
+  axes: ["SOFT", "WONK"],
+  variable: "--font-rehearse-display",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Rehearse - Skill Retention Platform",
-  description: "Prevent learned knowledge from decaying through intelligent practice reminders and visual decay tracking.",
+  title: {
+    default: "Rehearse — Build skills you can prove",
+    template: "%s | Rehearse",
+  },
+  description:
+    "Turn your sources into recall practice and grow an evidence-backed Skill Tree.",
+};
+
+export const viewport: Viewport = {
+  colorScheme: "light",
+  themeColor: "#f5faf6",
 };
 
 export default function RootLayout({
@@ -23,15 +36,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const content = isPortfolioDemoEnabled() ? (
+    children
+  ) : (
+    <AuthSessionProvider>{children}</AuthSessionProvider>
+  );
+
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <AuthSessionProvider>
-          {children}
-        </AuthSessionProvider>
-      </body>
+    <html lang="en" className={`${bodyFont.variable} ${displayFont.variable}`}>
+      <body className="antialiased">{content}</body>
     </html>
   );
 }

@@ -30,6 +30,9 @@ export class ThumbnailGenerator {
     fileId: string,
     options: ThumbnailOptions = {}
   ): Promise<string | null> {
+    void inputPath
+    void fileId
+    void options
     // For now, we'll return null and implement actual image processing later
     // This would typically use Sharp or similar library for image processing
     // For the MVP, we'll rely on CSS scaling of images
@@ -41,6 +44,9 @@ export class ThumbnailGenerator {
     fileId: string,
     options: ThumbnailOptions = {}
   ): Promise<string | null> {
+    void inputPath
+    void fileId
+    void options
     // For now, we'll return null and implement PDF thumbnail generation later
     // This would typically use PDF-lib or similar to render first page as image
     return null
@@ -52,6 +58,10 @@ export class ThumbnailGenerator {
     content: string,
     options: ThumbnailOptions = {}
   ): Promise<string | null> {
+    void inputPath
+    void fileId
+    void content
+    void options
     // For now, we'll return null and implement text preview generation later
     // This could generate a preview image showing the first few lines of text
     return null

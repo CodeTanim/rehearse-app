@@ -7,39 +7,55 @@ import { AuthLayout } from "@/components/auth/auth-layout"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
 import { Button } from "@/components/ui/button"
-import { z } from "zod"
+import { Alert } from "@/components/ui/alert"
+import {
+  MAXIMUM_PASSWORD_LENGTH,
+  MINIMUM_PASSWORD_LENGTH,
+  registerSchema,
+  type RegisterInput,
+} from "@/lib/auth/validation"
 
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-})
+type RegisterErrors = Partial<Record<keyof RegisterInput | "general", string>>
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<RegisterInput>({
     name: "",
     email: "",
     password: "",
   })
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<RegisterErrors>({})
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors({})
+
+    const result = registerSchema.safeParse(formData)
+
+    if (!result.success) {
+      const fieldErrors: RegisterErrors = {}
+      result.error.issues.forEach((issue) => {
+        const field = issue.path[0]
+        if (field === "name" || field === "email" || field === "password") {
+          fieldErrors[field] = issue.message
+        }
+      })
+      setErrors(fieldErrors)
+      return
+    }
+
     setIsLoading(true)
-
     try {
-      // Validate form data
-      registerSchema.parse(formData)
-
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...result.data,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        }),
       })
 
       const data = await response.json()
@@ -48,20 +64,9 @@ export default function RegisterPage() {
         throw new Error(data.error || "Registration failed")
       }
 
-      // Registration successful, redirect to login
-      router.push("/auth/login?message=Registration successful! Please sign in.")
+      router.replace("/auth/login?registered=1")
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldErrors: Record<string, string> = {}
-        error.issues.forEach((err) => {
-          if (err.path[0]) {
-            fieldErrors[err.path[0] as string] = err.message
-          }
-        })
-        setErrors(fieldErrors)
-      } else {
-        setErrors({ general: (error as Error).message })
-      }
+      setErrors({ general: (error as Error).message })
     } finally {
       setIsLoading(false)
     }
@@ -70,69 +75,69 @@ export default function RegisterPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: "" }))
-    }
+    setErrors((current) => ({ ...current, [name]: undefined, general: undefined }))
   }
 
   return (
-    <AuthLayout 
-      title="Create your account"
-      subtitle="Start your skill retention journey"
-    >
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <AuthLayout title="Create account">
+      <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         {errors.general && (
-          <div className="p-3 text-sm error-text bg-destructive/10 border border-destructive/20 rounded-md">
+          <Alert role="alert" variant="destructive" className="text-sm font-semibold text-destructive">
             {errors.general}
-          </div>
+          </Alert>
         )}
 
         <div className="space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-foreground mb-1">
-              Full Name
+            <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-foreground">
+              Name
             </label>
             <Input
               id="name"
               name="name"
               type="text"
+              autoComplete="name"
+              maxLength={80}
               value={formData.name}
               onChange={handleChange}
               error={errors.name}
-              placeholder="Enter your full name"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
-              Email Address
+            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-foreground">
+              Email
             </label>
             <Input
               id="email"
               name="email"
               type="email"
+              autoComplete="email"
+              inputMode="email"
+              maxLength={254}
               value={formData.email}
               onChange={handleChange}
               error={errors.email}
-              placeholder="Enter your email"
               required
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
+            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-foreground">
               Password
             </label>
             <PasswordInput
               id="password"
               name="password"
+              autoComplete="new-password"
               value={formData.password}
               onChange={handleChange}
               error={errors.password}
-              placeholder="Create a password"
               showRequirements={true}
+              minimumLength={MINIMUM_PASSWORD_LENGTH}
+              minLength={MINIMUM_PASSWORD_LENGTH}
+              maxLength={MAXIMUM_PASSWORD_LENGTH}
               required
             />
           </div>
@@ -144,15 +149,15 @@ export default function RegisterPage() {
           isLoading={isLoading}
           disabled={isLoading}
         >
-          Create Account
+          Create account
         </Button>
 
         <div className="text-center">
           <p className="text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link 
-              href="/auth/login" 
-              className="font-medium text-terracotta hover:text-terracotta-dark"
+            <Link
+              href="/auth/login"
+              className="font-medium text-link underline-offset-4 hover:underline"
             >
               Sign in
             </Link>

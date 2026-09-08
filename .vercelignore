@@ -1,0 +1,17 @@
+.env
+.env.*
+.git
+.next
+coverage
+node_modules
+playwright-report
+test-results
+
+# Local-only state and mutation helpers must never enter a deployment bundle.
+prisma/*.db
+prisma/*.db-*
+public/uploads
+storage
+uploads
+scripts/set-demo-state.mjs
+scripts/setup-local.mjs

@@ -46,13 +46,34 @@ model User {
   email         String    @unique
   emailVerified DateTime? @map("email_verified")
   image         String?
-  password      String?   // For credentials auth
+  password      String? // For credentials auth
+  timezone      String    @default("UTC")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  accounts     Account[]
-  sessions     Session[]
-  skillFolders SkillFolder[]
+  accounts                       Account[]
+  sessions                       Session[]
+  skillFolders                   SkillFolder[]
+  skillGraph                     SkillGraph?
+  learningGoals                  LearningGoal[]
+  goalSkills                     GoalSkill[]
+  conceptVersionsCreated         ConceptVersion[]                @relation("ConceptVersionCreator")
+  questions                      Question[]
+  questionRevisionsCreated       QuestionRevision[]              @relation("QuestionRevisionCreator")
+  reviewSchedules                ReviewSchedule[]
+  practiceSessions               PracticeSession[]
+  practiceResponseCheckpoints    PracticeResponseCheckpoint[]
+  attempts                       Attempt[]
+  masteryEvidence                MasteryEvidence[]
+  sources                        Source[]
+  skillSourceAssignments         SkillSourceAssignment[]
+  learningPacks                  LearningPack[]
+  learningPackAttempts           LearningPackAttempt[]
+  initialQuizDrafts              InitialQuizDraft[]
+  learningPackGenerationRequests LearningPackGenerationRequest[]
+  skillRelationships             SkillRelationship[]
+  learningGaps                   LearningGap[]
+  remediationActivities          RemediationActivity[]
 
   @@map("users")
 }
@@ -68,58 +89,812 @@ model VerificationToken {
 
 model SkillFolder {
   id          String   @id @default(cuid())
-  name        String   
-  description String?  
-  color       String?  @default("#E6A045")
+  name        String
+  description String?
+  color       String?  @default("#3B82F6")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   userId      String   @map("user_id")
-  
+
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   files   File[]
   notes   Note[]
   qaPairs QAPair[]
-  
+
   @@unique([userId, name])
   @@map("skill_folders")
 }
 
 model File {
-  id             String      @id @default(cuid())
-  filename       String
-  originalName   String      @map("original_name")
-  mimeType       String      @map("mime_type")
-  size           Int
-  uploadedAt     DateTime    @default(now()) @map("uploaded_at")
-  skillFolderId  String      @map("skill_folder_id")
-  
+  id            String   @id @default(cuid())
+  filename      String
+  originalName  String   @map("original_name")
+  mimeType      String   @map("mime_type")
+  size          Int
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+  skillFolderId String   @map("skill_folder_id")
+
   skillFolder SkillFolder @relation(fields: [skillFolderId], references: [id], onDelete: Cascade)
-  
+
+  @@unique([skillFolderId, originalName])
   @@map("files")
 }
 
 model Note {
-  id             String      @id @default(cuid())
-  title          String
-  content        String
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-  skillFolderId  String      @map("skill_folder_id")
-  
+  id            String   @id @default(cuid())
+  title         String
+  content       String
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  skillFolderId String   @map("skill_folder_id")
+
   skillFolder SkillFolder @relation(fields: [skillFolderId], references: [id], onDelete: Cascade)
-  
+
   @@map("notes")
 }
 
 model QAPair {
-  id             String      @id @default(cuid())
-  question       String
-  answer         String
-  difficulty     String?     @default("medium")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  skillFolderId  String      @map("skill_folder_id")
-  
+  id            String   @id @default(cuid())
+  question      String
+  answer        String
+  difficulty    String?  @default("medium")
+  createdAt     DateTime @default(now()) @map("created_at")
+  skillFolderId String   @map("skill_folder_id")
+
   skillFolder SkillFolder @relation(fields: [skillFolderId], references: [id], onDelete: Cascade)
-  
+
   @@map("qa_pairs")
+}
+
+// The models below are the production-shaped minimum for the manual learning
+// loop. Status-like values remain strings while the local prototype uses
+// SQLite; domain modules and migration CHECK constraints define their values.
+
+model SkillGraph {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goals         LearningGoal[]
+  nodes         SkillNode[]
+  relationships SkillRelationship[]
+
+  @@map("skill_graphs")
+}
+
+model LearningGoal {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  graphId      String    @map("graph_id")
+  title        String
+  outcome      String
+  slug         String
+  status       String    @default("ACTIVE")
+  targetDate   DateTime? @map("target_date")
+  dailyMinutes Int       @default(10) @map("daily_minutes")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  graph            SkillGraph        @relation(fields: [graphId], references: [id], onDelete: Cascade)
+  goalSkills       GoalSkill[]
+  goalQuestions    GoalQuestion[]
+  practiceSessions PracticeSession[]
+
+  @@unique([userId, slug])
+  @@index([userId, status])
+  @@index([graphId])
+  @@map("learning_goals")
+}
+
+model SkillNode {
+  id                      String    @id @default(cuid())
+  graphId                 String    @map("graph_id")
+  parentId                String?   @map("parent_id")
+  kind                    String
+  title                   String
+  slug                    String
+  outcome                 String?
+  defaultSuccessCriterion String?   @map("default_success_criterion")
+  state                   String    @default("DRAFT")
+  sortOrder               Int       @default(0) @map("sort_order")
+  archivedAt              DateTime? @map("archived_at")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  graph                 SkillGraph          @relation(fields: [graphId], references: [id], onDelete: Cascade)
+  parent                SkillNode?          @relation("SkillNodeHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children              SkillNode[]         @relation("SkillNodeHierarchy")
+  goalSkills            GoalSkill[]
+  concepts              Concept[]
+  questions             Question[]
+  outgoingRelationships SkillRelationship[] @relation("SkillRelationshipSource")
+  incomingRelationships SkillRelationship[] @relation("SkillRelationshipTarget")
+
+  @@unique([graphId, slug])
+  @@index([graphId, parentId, sortOrder])
+  @@map("skill_nodes")
+}
+
+model GoalSkill {
+  id                    String   @id @default(cuid())
+  userId                String   @map("user_id")
+  goalId                String   @map("goal_id")
+  skillNodeId           String   @map("skill_node_id")
+  requirement           String   @default("REQUIRED")
+  lifecycle             String   @default("DRAFT")
+  currentScopeVersionId String?  @unique @map("current_scope_version_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  user                           User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal                           LearningGoal                    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  skillNode                      SkillNode                       @relation(fields: [skillNodeId], references: [id], onDelete: Restrict)
+  currentScopeVersion            GoalSkillScopeVersion?          @relation("CurrentGoalSkillScope", fields: [currentScopeVersionId], references: [id], onDelete: SetNull)
+  scopeVersions                  GoalSkillScopeVersion[]         @relation("GoalSkillScopeVersions")
+  readiness                      GoalSkillReadiness[]
+  practiceSessions               PracticeSession[]
+  sourceAssignments              SkillSourceAssignment[]
+  learningPack                   LearningPack?
+  learningPackAttempts           LearningPackAttempt[]
+  learningPackGenerationRequests LearningPackGenerationRequest[]
+  learningGaps                   LearningGap[]
+
+  @@unique([goalId, skillNodeId])
+  @@index([userId, lifecycle])
+  @@map("goal_skills")
+}
+
+model GoalSkillScopeVersion {
+  id               String    @id @default(cuid())
+  goalSkillId      String    @map("goal_skill_id")
+  version          Int
+  outcome          String
+  successCriterion String    @map("success_criterion")
+  policyVersion    String    @default("mastery-v1") @map("policy_version")
+  creationReason   String    @default("INITIAL_MANUAL_SETUP") @map("creation_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  supersededAt     DateTime? @map("superseded_at")
+
+  goalSkill           GoalSkill               @relation("GoalSkillScopeVersions", fields: [goalSkillId], references: [id], onDelete: Cascade)
+  currentForGoalSkill GoalSkill?              @relation("CurrentGoalSkillScope")
+  concepts            GoalSkillScopeConcept[]
+  readiness           GoalSkillReadiness[]
+
+  @@unique([goalSkillId, version])
+  @@map("goal_skill_scope_versions")
+}
+
+model Concept {
+  id               String   @id @default(cuid())
+  skillNodeId      String   @map("skill_node_id")
+  canonicalKey     String   @map("canonical_key")
+  state            String   @default("ACTIVE")
+  origin           String   @default("MANUAL")
+  currentVersionId String?  @unique @map("current_version_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  skillNode      SkillNode        @relation(fields: [skillNodeId], references: [id], onDelete: Cascade)
+  currentVersion ConceptVersion?  @relation("CurrentConceptVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions       ConceptVersion[] @relation("ConceptVersions")
+
+  @@unique([skillNodeId, canonicalKey])
+  @@map("concepts")
+}
+
+model ConceptVersion {
+  id          String   @id @default(cuid())
+  conceptId   String   @map("concept_id")
+  revision    Int
+  title       String
+  definition  String?
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  concept           Concept                   @relation("ConceptVersions", fields: [conceptId], references: [id], onDelete: Cascade)
+  currentForConcept Concept?                  @relation("CurrentConceptVersion")
+  createdBy         User                      @relation("ConceptVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  scopeConcepts     GoalSkillScopeConcept[]
+  questionConcepts  QuestionRevisionConcept[]
+  masteryEvidence   MasteryEvidence[]
+  learningGaps      LearningGap[]
+
+  @@unique([conceptId, revision])
+  @@map("concept_versions")
+}
+
+model GoalSkillScopeConcept {
+  id               String @id @default(cuid())
+  scopeVersionId   String @map("scope_version_id")
+  conceptVersionId String @map("concept_version_id")
+  requirement      String @default("REQUIRED")
+  weight           Float  @default(1)
+
+  scopeVersion   GoalSkillScopeVersion @relation(fields: [scopeVersionId], references: [id], onDelete: Cascade)
+  conceptVersion ConceptVersion        @relation(fields: [conceptVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([scopeVersionId, conceptVersionId])
+  @@map("goal_skill_scope_concepts")
+}
+
+model Question {
+  id                 String   @id @default(cuid())
+  userId             String   @map("user_id")
+  skillNodeId        String   @map("skill_node_id")
+  state              String   @default("ACTIVE")
+  origin             String   @default("MANUAL")
+  type               String   @default("FREE_RECALL")
+  currentRevisionId  String?  @unique @map("current_revision_id")
+  schedulingEligible Boolean  @default(true) @map("scheduling_eligible")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillNode       SkillNode              @relation(fields: [skillNodeId], references: [id], onDelete: Restrict)
+  currentRevision QuestionRevision?      @relation("CurrentQuestionRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  revisions       QuestionRevision[]     @relation("QuestionRevisions")
+  goalQuestions   GoalQuestion[]
+  reviewSchedules ReviewSchedule[]
+  sessionItems    PracticeSessionItem[]
+  attempts        Attempt[]
+  generatedSpec   GeneratedQuestionSpec?
+  learningGaps    LearningGap[]
+
+  @@index([userId, state])
+  @@map("questions")
+}
+
+model GoalQuestion {
+  id         String @id @default(cuid())
+  goalId     String @map("goal_id")
+  questionId String @map("question_id")
+  status     String @default("ACTIVE")
+
+  goal     LearningGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  question Question     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([goalId, questionId])
+  @@map("goal_questions")
+}
+
+model QuestionRevision {
+  id              String   @id @default(cuid())
+  questionId      String   @map("question_id")
+  revision        Int
+  prompt          String
+  referenceAnswer String   @map("reference_answer")
+  explanation     String?
+  createdById     String   @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  question           Question                  @relation("QuestionRevisions", fields: [questionId], references: [id], onDelete: Cascade)
+  currentForQuestion Question?                 @relation("CurrentQuestionRevision")
+  createdBy          User                      @relation("QuestionRevisionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  concepts           QuestionRevisionConcept[]
+  reviewSchedules    ReviewSchedule[]
+  sessionItems       PracticeSessionItem[]
+  attempts           Attempt[]
+  learningGaps       LearningGap[]
+
+  @@unique([questionId, revision])
+  @@map("question_revisions")
+}
+
+model QuestionRevisionConcept {
+  id                 String  @id @default(cuid())
+  questionRevisionId String  @map("question_revision_id")
+  conceptVersionId   String  @map("concept_version_id")
+  isPrimary          Boolean @default(false) @map("is_primary")
+
+  questionRevision QuestionRevision @relation(fields: [questionRevisionId], references: [id], onDelete: Cascade)
+  conceptVersion   ConceptVersion   @relation(fields: [conceptVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([questionRevisionId, conceptVersionId])
+  @@map("question_revision_concepts")
+}
+
+model ReviewSchedule {
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id")
+  questionId         String    @map("question_id")
+  questionRevisionId String    @map("question_revision_id")
+  dueAt              DateTime  @map("due_at")
+  intervalMinutes    Int       @default(0) @map("interval_minutes")
+  repetitions        Int       @default(0)
+  lapses             Int       @default(0)
+  lastReviewedAt     DateTime? @map("last_reviewed_at")
+  algorithmVersion   String    @default("schedule-v1") @map("algorithm_version")
+  version            Int       @default(0)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question         Question         @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionRevision QuestionRevision @relation(fields: [questionRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, questionId])
+  @@index([userId, dueAt])
+  @@map("review_schedules")
+}
+
+model PracticeSession {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  goalId      String    @map("goal_id")
+  goalSkillId String?   @map("goal_skill_id")
+  reason      String
+  status      String    @default("ACTIVE")
+  targetCount Int       @default(1) @map("target_count")
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal      LearningGoal          @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  goalSkill GoalSkill?            @relation(fields: [goalSkillId], references: [id], onDelete: Restrict)
+  items     PracticeSessionItem[]
+
+  @@index([userId, status])
+  @@map("practice_sessions")
+}
+
+model PracticeSessionItem {
+  id                       String    @id @default(cuid())
+  sessionId                String    @map("session_id")
+  questionId               String    @map("question_id")
+  questionRevisionId       String    @map("question_revision_id")
+  ordinal                  Int
+  status                   String    @default("PRESENTED")
+  scheduleDueAtBefore      DateTime  @map("schedule_due_at_before")
+  intervalMinutesBefore    Int       @map("interval_minutes_before")
+  repetitionsBefore        Int       @map("repetitions_before")
+  lapsesBefore             Int       @map("lapses_before")
+  scheduleAlgorithmVersion String    @map("schedule_algorithm_version")
+  presentedAt              DateTime  @default(now()) @map("presented_at")
+  completedAt              DateTime? @map("completed_at")
+  resultJson               String?   @map("result_json")
+
+  session            PracticeSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question           Question                    @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionRevision   QuestionRevision            @relation(fields: [questionRevisionId], references: [id], onDelete: Restrict)
+  responseCheckpoint PracticeResponseCheckpoint?
+  attempt            Attempt?
+
+  @@unique([sessionId, ordinal])
+  @@unique([sessionId, questionRevisionId])
+  @@map("practice_session_items")
+}
+
+model PracticeResponseCheckpoint {
+  id                  String    @id @default(cuid())
+  sessionItemId       String    @unique @map("session_item_id")
+  userId              String    @map("user_id")
+  phase               String    @default("PROMPT")
+  draftAnswer         String    @default("") @map("draft_answer")
+  lockedAnswer        String?   @map("locked_answer")
+  revealedAt          DateTime? @map("revealed_at")
+  pendingRating       String?   @map("pending_rating")
+  gradeIdempotencyKey String?   @map("grade_idempotency_key")
+  version             Int       @default(0)
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  sessionItem PracticeSessionItem @relation(fields: [sessionItemId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gradeIdempotencyKey])
+  @@index([userId, phase])
+  @@map("practice_response_checkpoints")
+}
+
+model Attempt {
+  id                       String   @id @default(cuid())
+  userId                   String   @map("user_id")
+  sessionItemId            String   @unique @map("session_item_id")
+  questionId               String   @map("question_id")
+  questionRevisionId       String   @map("question_revision_id")
+  lockedAnswer             String   @map("locked_answer")
+  rating                   String
+  revealedAt               DateTime @map("revealed_at")
+  responseTimeMs           Int      @map("response_time_ms")
+  idempotencyKey           String   @map("idempotency_key")
+  occurredAt               DateTime @default(now()) @map("occurred_at")
+  dueAtBefore              DateTime @map("due_at_before")
+  dueAtAfter               DateTime @map("due_at_after")
+  intervalMinutesBefore    Int      @map("interval_minutes_before")
+  intervalMinutesAfter     Int      @map("interval_minutes_after")
+  repetitionsBefore        Int      @map("repetitions_before")
+  repetitionsAfter         Int      @map("repetitions_after")
+  lapsesBefore             Int      @map("lapses_before")
+  lapsesAfter              Int      @map("lapses_after")
+  scheduleAlgorithmVersion String   @map("schedule_algorithm_version")
+  evidenceStageBefore      String   @map("evidence_stage_before")
+  evidenceStageAfter       String   @map("evidence_stage_after")
+  confidenceBefore         String   @map("confidence_before")
+  confidenceAfter          String   @map("confidence_after")
+
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionItem           PracticeSessionItem @relation(fields: [sessionItemId], references: [id], onDelete: Restrict)
+  question              Question            @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionRevision      QuestionRevision    @relation(fields: [questionRevisionId], references: [id], onDelete: Restrict)
+  masteryEvidence       MasteryEvidence[]
+  learningGapsTriggered LearningGap[]       @relation("LearningGapTriggerAttempt")
+  learningGapsResolved  LearningGap[]       @relation("LearningGapResolutionAttempt")
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, occurredAt])
+  @@map("attempts")
+}
+
+model MasteryEvidence {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  attemptId        String   @map("attempt_id")
+  conceptVersionId String   @map("concept_version_id")
+  kind             String   @default("SELF_ASSESSED_RECALL")
+  normalizedScore  Float    @map("normalized_score")
+  weight           Float
+  reviewDay        String   @map("review_day")
+  reviewTimezone   String   @map("review_timezone")
+  occurredAt       DateTime @map("occurred_at")
+  algorithmVersion String   @default("mastery-v1") @map("algorithm_version")
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempt        Attempt        @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  conceptVersion ConceptVersion @relation(fields: [conceptVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, conceptVersionId])
+  @@index([userId, conceptVersionId, reviewDay])
+  @@map("mastery_evidence")
+}
+
+model GoalSkillReadiness {
+  id                          String    @id @default(cuid())
+  goalSkillId                 String    @map("goal_skill_id")
+  scopeVersionId              String    @map("scope_version_id")
+  ruleVersion                 String    @default("mastery-v1") @map("rule_version")
+  stage                       String    @default("UNASSESSED")
+  confidence                  String    @default("LOW")
+  scopeCoverage               Float     @default(0) @map("scope_coverage")
+  selfAssessedIndex           Float?    @map("self_assessed_index")
+  recentThreeSessionIndex     Float?    @map("recent_three_session_index")
+  fullWeightReviews           Int       @default(0) @map("full_weight_reviews")
+  successfulFullWeightReviews Int       @default(0) @map("successful_full_weight_reviews")
+  distinctReviewDays          Int       @default(0) @map("distinct_review_days")
+  spanDays                    Int       @default(0) @map("span_days")
+  completedSessions           Int       @default(0) @map("completed_sessions")
+  successfulTransferProbes    Int       @default(0) @map("successful_transfer_probes")
+  transferReviewDays          Int       @default(0) @map("transfer_review_days")
+  latestRating                String?   @map("latest_rating")
+  earliestDueAt               DateTime? @map("earliest_due_at")
+  explanationJson             String    @map("explanation_json")
+  computedAt                  DateTime  @default(now()) @map("computed_at")
+
+  goalSkill    GoalSkill             @relation(fields: [goalSkillId], references: [id], onDelete: Cascade)
+  scopeVersion GoalSkillScopeVersion @relation(fields: [scopeVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([goalSkillId, scopeVersionId, ruleVersion])
+  @@map("goal_skill_readiness")
+}
+
+model Source {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  type             String
+  origin           String
+  status           String    @default("READY")
+  canonicalKey     String    @map("canonical_key")
+  displayName      String    @map("display_name")
+  displayUrl       String?   @map("display_url")
+  currentVersionId String?   @unique @map("current_version_id")
+  archivedAt       DateTime? @map("archived_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user           User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentVersion SourceVersion?          @relation("CurrentSourceVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions       SourceVersion[]         @relation("SourceVersions")
+  assignments    SkillSourceAssignment[]
+
+  @@unique([userId, type, canonicalKey])
+  @@index([userId, status])
+  @@map("sources")
+}
+
+model SourceVersion {
+  id               String   @id @default(cuid())
+  sourceId         String   @map("source_id")
+  revision         Int
+  mimeType         String   @map("mime_type")
+  byteSize         Int      @map("byte_size")
+  sha256           String
+  extractedText    String   @map("extracted_text")
+  retrievedAt      DateTime @map("retrieved_at")
+  extractorVersion String   @default("text-v1") @map("extractor_version")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  source                     Source                      @relation("SourceVersions", fields: [sourceId], references: [id], onDelete: Cascade)
+  currentForSource           Source?                     @relation("CurrentSourceVersion")
+  assignments                SkillSourceAssignment[]
+  generatedQuestionSpecs     GeneratedQuestionSpec[]
+  learningPackVersionSources LearningPackVersionSource[]
+  remediationRevisions       RemediationRevision[]
+
+  @@unique([sourceId, revision])
+  @@unique([sourceId, sha256])
+  @@index([sourceId, createdAt])
+  @@map("source_versions")
+}
+
+model SkillSourceAssignment {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  goalSkillId     String   @map("goal_skill_id")
+  sourceId        String   @map("source_id")
+  sourceVersionId String   @map("source_version_id")
+  status          String   @default("INCLUDED")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalSkill     GoalSkill     @relation(fields: [goalSkillId], references: [id], onDelete: Cascade)
+  source        Source        @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sourceVersion SourceVersion @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([goalSkillId, sourceId])
+  @@index([userId, goalSkillId, status])
+  @@map("skill_source_assignments")
+}
+
+model LearningPack {
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  goalSkillId      String   @unique @map("goal_skill_id")
+  state            String   @default("READY")
+  currentVersionId String?  @unique @map("current_version_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalSkill      GoalSkill             @relation(fields: [goalSkillId], references: [id], onDelete: Cascade)
+  currentVersion LearningPackVersion?  @relation("CurrentLearningPackVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions       LearningPackVersion[] @relation("LearningPackVersions")
+
+  @@unique([userId, goalSkillId])
+  @@index([userId, state])
+  @@map("learning_packs")
+}
+
+model LearningPackVersion {
+  id                   String   @id @default(cuid())
+  learningPackId       String   @map("learning_pack_id")
+  version              Int
+  inputHash            String   @map("input_hash")
+  modelId              String   @map("model_id")
+  generatorVersion     String   @default("learning-pack-v1") @map("generator_version")
+  schemaVersion        String   @default("learning-pack-v1") @map("schema_version")
+  sourceVersionIdsJson String   @map("source_version_ids_json")
+  contentJson          String   @map("content_json")
+  consentedAt          DateTime @map("consented_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  learningPack           LearningPack                @relation("LearningPackVersions", fields: [learningPackId], references: [id], onDelete: Cascade)
+  currentForLearningPack LearningPack?               @relation("CurrentLearningPackVersion")
+  attempts               LearningPackAttempt[]
+  initialQuizDraft        InitialQuizDraft?
+  generatedQuestionSpecs GeneratedQuestionSpec[]
+  sourceLinks            LearningPackVersionSource[]
+
+  @@unique([learningPackId, version])
+  @@unique([learningPackId, inputHash])
+  @@index([learningPackId, createdAt])
+  @@map("learning_pack_versions")
+}
+
+model InitialQuizDraft {
+  packVersionId String @id @map("pack_version_id")
+  userId        String @map("user_id")
+  attemptId     String @unique @map("attempt_id")
+  version       Int @default(0)
+  stateJson     String @map("state_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  packVersion LearningPackVersion @relation(fields: [packVersionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("initial_quiz_drafts")
+}
+
+model LearningPackVersionSource {
+  learningPackVersionId String @map("learning_pack_version_id")
+  sourceVersionId       String @map("source_version_id")
+  ordinal               Int
+
+  learningPackVersion LearningPackVersion @relation(fields: [learningPackVersionId], references: [id], onDelete: Cascade)
+  sourceVersion       SourceVersion       @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
+
+  @@id([learningPackVersionId, sourceVersionId])
+  @@unique([learningPackVersionId, ordinal])
+  @@index([sourceVersionId])
+  @@map("learning_pack_version_sources")
+}
+
+model GeneratedQuestionSpec {
+  questionId            String   @id @map("question_id")
+  learningPackVersionId String   @map("learning_pack_version_id")
+  sourceVersionId       String   @map("source_version_id")
+  questionFamilyId      String   @map("question_family_id")
+  role                  String
+  originalIndex         Int      @map("original_index")
+  responseType          String   @map("response_type")
+  choicesJson           String   @map("choices_json")
+  correctChoiceIndex    Int?     @map("correct_choice_index")
+  citationLocator       String   @map("citation_locator")
+  citationExcerpt       String   @map("citation_excerpt")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  question            Question            @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  learningPackVersion LearningPackVersion @relation(fields: [learningPackVersionId], references: [id], onDelete: Restrict)
+  sourceVersion       SourceVersion       @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([learningPackVersionId, originalIndex])
+  @@index([learningPackVersionId, role])
+  @@index([sourceVersionId])
+  @@map("generated_question_specs")
+}
+
+model LearningPackAttempt {
+  id                    String   @id
+  userId                String   @map("user_id")
+  goalSkillId           String   @map("goal_skill_id")
+  learningPackVersionId String   @map("learning_pack_version_id")
+  bodyHash              String   @map("body_hash")
+  answersJson           String   @map("answers_json")
+  resultJson            String   @map("result_json")
+  metCount              Int      @map("met_count")
+  questionCount         Int      @map("question_count")
+  startedAt             DateTime @map("started_at")
+  completedAt           DateTime @map("completed_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalSkill           GoalSkill           @relation(fields: [goalSkillId], references: [id], onDelete: Cascade)
+  learningPackVersion LearningPackVersion @relation(fields: [learningPackVersionId], references: [id], onDelete: Restrict)
+  learningGaps        LearningGap[]
+
+  @@unique([userId, learningPackVersionId])
+  @@index([userId, goalSkillId, completedAt])
+  @@map("learning_pack_attempts")
+}
+
+model LearningGap {
+  id                           String    @id
+  userId                       String    @map("user_id")
+  goalSkillId                  String    @map("goal_skill_id")
+  conceptVersionId             String    @map("concept_version_id")
+  questionId                   String    @map("question_id")
+  questionRevisionId           String    @map("question_revision_id")
+  initialLearningPackAttemptId String?   @map("initial_learning_pack_attempt_id")
+  latestRecallAttemptId        String?   @map("latest_recall_attempt_id")
+  resolvedByAttemptId          String?   @map("resolved_by_attempt_id")
+  status                       String    @default("OPEN")
+  openedReviewDay              String    @map("opened_review_day")
+  openedAt                     DateTime  @map("opened_at")
+  resolvedAt                   DateTime? @map("resolved_at")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  user                       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalSkill                  GoalSkill             @relation(fields: [goalSkillId], references: [id], onDelete: Cascade)
+  conceptVersion             ConceptVersion        @relation(fields: [conceptVersionId], references: [id], onDelete: Restrict)
+  question                   Question              @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  questionRevision           QuestionRevision      @relation(fields: [questionRevisionId], references: [id], onDelete: Restrict)
+  initialLearningPackAttempt LearningPackAttempt?  @relation(fields: [initialLearningPackAttemptId], references: [id], onDelete: Restrict)
+  latestRecallAttempt        Attempt?              @relation("LearningGapTriggerAttempt", fields: [latestRecallAttemptId], references: [id], onDelete: Restrict)
+  resolvedByAttempt          Attempt?              @relation("LearningGapResolutionAttempt", fields: [resolvedByAttemptId], references: [id], onDelete: Restrict)
+  remediationRevisions       RemediationRevision[]
+  activities                 RemediationActivity[]
+
+  @@unique([userId, goalSkillId, conceptVersionId])
+  @@index([userId, status, openedAt])
+  @@index([goalSkillId, status])
+  @@map("learning_gaps")
+}
+
+model RemediationRevision {
+  id                String   @id @default(cuid())
+  learningGapId     String   @map("learning_gap_id")
+  sourceVersionId   String   @map("source_version_id")
+  revision          Int
+  triggerKind       String   @map("trigger_kind")
+  triggerKey        String   @map("trigger_key")
+  gapLabel          String   @map("gap_label")
+  recommendedAction String   @map("recommended_action")
+  explanation       String
+  workedExample     String?  @map("worked_example")
+  scaffoldPrompt    String   @map("scaffold_prompt")
+  scaffoldAnswer    String   @map("scaffold_answer")
+  citationLocator   String   @map("citation_locator")
+  citationExcerpt   String   @map("citation_excerpt")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  learningGap   LearningGap           @relation(fields: [learningGapId], references: [id], onDelete: Cascade)
+  sourceVersion SourceVersion         @relation(fields: [sourceVersionId], references: [id], onDelete: Restrict)
+  activities    RemediationActivity[]
+
+  @@unique([learningGapId, revision])
+  @@unique([learningGapId, triggerKind, triggerKey])
+  @@index([sourceVersionId])
+  @@map("remediation_revisions")
+}
+
+model RemediationActivity {
+  id                    String   @id @default(cuid())
+  userId                String   @map("user_id")
+  learningGapId         String   @map("learning_gap_id")
+  remediationRevisionId String   @map("remediation_revision_id")
+  answer                String
+  completedAt           DateTime @map("completed_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  learningGap         LearningGap         @relation(fields: [learningGapId], references: [id], onDelete: Cascade)
+  remediationRevision RemediationRevision @relation(fields: [remediationRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, learningGapId, remediationRevisionId])
+  @@index([learningGapId, completedAt])
+  @@map("remediation_activities")
+}
+
+model LearningPackGenerationRequest {
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  goalSkillId          String   @map("goal_skill_id")
+  inputHash            String   @map("input_hash")
+  modelId              String   @map("model_id")
+  sourceVersionIdsJson String   @map("source_version_ids_json")
+  consentedAt          DateTime @map("consented_at")
+  expiresAt            DateTime @map("expires_at")
+  status               String   @default("PENDING")
+  activeUserKey        String?  @unique @map("active_user_key")
+  failureCode          String?  @map("failure_code")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goalSkill GoalSkill @relation(fields: [goalSkillId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([goalSkillId, status])
+  @@map("learning_pack_generation_requests")
+}
+
+model SkillRelationship {
+  id                String   @id @default(cuid())
+  userId            String   @map("user_id")
+  graphId           String   @map("graph_id")
+  sourceSkillNodeId String   @map("source_skill_node_id")
+  targetSkillNodeId String   @map("target_skill_node_id")
+  kind              String
+  origin            String
+  status            String
+  confidence        Float?
+  rationale         String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  graph           SkillGraph @relation(fields: [graphId], references: [id], onDelete: Cascade)
+  sourceSkillNode SkillNode  @relation("SkillRelationshipSource", fields: [sourceSkillNodeId], references: [id], onDelete: Cascade)
+  targetSkillNode SkillNode  @relation("SkillRelationshipTarget", fields: [targetSkillNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([graphId, kind, sourceSkillNodeId, targetSkillNodeId])
+  @@index([userId, status, createdAt])
+  @@index([sourceSkillNodeId])
+  @@index([targetSkillNodeId])
+  @@map("skill_relationships")
 }

@@ -1,8 +1,12 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
+import { SearchX, TriangleAlert, X } from 'lucide-react'
 import { FileWithMetadata } from '@/lib/types/file'
 import { FileUtils } from '@/lib/file-utils'
+import { Alert } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { FileList } from './file-list'
 import { FileToolbar } from './file-toolbar'
 import { FileUploadZone } from './file-upload-zone'
@@ -12,7 +16,6 @@ interface FileManagerProps {
   files: FileWithMetadata[]
   uploadingFiles?: UploadingFile[]
   isLoading?: boolean
-  error?: string | null
   onFilesSelected: (files: FileList) => void
   onFileDelete?: (fileId: string) => void
   onFileDownload?: (file: FileWithMetadata) => void
@@ -27,7 +30,6 @@ export function FileManager({
   files,
   uploadingFiles = [],
   isLoading = false,
-  error,
   onFilesSelected,
   onFileDelete,
   onFileDownload,
@@ -97,17 +99,20 @@ export function FileManager({
       {/* Upload Zone */}
       {showUploadZone && (showUploadForm || (!files.length && !uploadingFiles.length)) && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-medium text-foreground">Upload Files</h3>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-black text-foreground">Upload files</h3>
+            </div>
             {files.length > 0 && (
-              <button
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
                 onClick={() => setShowUploadForm(false)}
-                className="text-muted-foreground hover:text-foreground"
+                aria-label="Close file upload form"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <X className="size-4" aria-hidden="true" />
+              </Button>
             )}
           </div>
           <FileUploadZone
@@ -120,40 +125,28 @@ export function FileManager({
 
       {/* Validation Error Display */}
       {validationErrors.length > 0 && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <svg className="w-5 h-5 text-destructive flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <p className="text-destructive font-medium">File Validation Errors</p>
-            <button
+        <Alert variant="destructive" role="alert">
+          <div className="flex items-start gap-3">
+            <TriangleAlert className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="font-black">Some files weren’t added</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                {validationErrors.map((validationError) => (
+                  <li key={validationError}>{validationError}</li>
+                ))}
+              </ul>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setValidationErrors([])}
-              className="ml-auto text-destructive/60 hover:text-destructive"
+              aria-label="Dismiss file validation errors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+              <X className="size-4" aria-hidden="true" />
+            </Button>
           </div>
-          <ul className="text-destructive/80 text-sm space-y-1">
-            {validationErrors.map((error, index) => (
-              <li key={index}>• {error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Upload Error Display */}
-      {error && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <svg className="w-5 h-5 text-destructive flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <p className="text-destructive font-medium">Upload Error</p>
-          </div>
-          <p className="text-destructive/80 mt-1">{error}</p>
-        </div>
+        </Alert>
       )}
 
       {/* File Management */}
@@ -161,7 +154,7 @@ export function FileManager({
         <div className="space-y-4">
           {/* Toolbar */}
           <FileToolbar
-            files={filteredFiles}
+            files={files}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             searchTerm={searchTerm}
@@ -172,40 +165,32 @@ export function FileManager({
           />
 
           {/* File List */}
-          <FileList
-            files={filteredFiles}
-            viewMode={viewMode}
-            onFileDelete={onFileDelete}
-            onFileDownload={onFileDownload}
-            isLoading={isLoading}
-          />
-
-          {/* No Results */}
-          {filteredFiles.length === 0 && files.length > 0 && !isLoading && (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-foreground mb-2">No files found</h3>
-                <p className="text-muted-foreground mb-4">
-                  {searchTerm ? `No files match "${searchTerm}"` : 
-                   selectedCategory !== 'all' ? 'No files in this category' : 
-                   'No files to display'}
-                </p>
-                <button
+          {filteredFiles.length === 0 && files.length > 0 && !isLoading ? (
+            <Card tone="note" className="p-8 text-center">
+              <SearchX className="mx-auto size-10" aria-hidden="true" />
+              <h3 className="mt-4 text-lg font-black">
+                {searchTerm ? `No files match “${searchTerm}”.` : 'No matching files'}
+              </h3>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-5"
                   onClick={() => {
                     setSearchTerm('')
                     setSelectedCategory('all')
                   }}
-                  className="text-accent hover:text-accent/80 text-sm font-medium"
-                >
-                  Clear filters
-                </button>
-              </div>
-            </div>
+              >
+                Clear
+              </Button>
+            </Card>
+          ) : (
+            <FileList
+              files={filteredFiles}
+              viewMode={viewMode}
+              onFileDelete={onFileDelete}
+              onFileDownload={onFileDownload}
+              isLoading={isLoading}
+            />
           )}
         </div>
       )}

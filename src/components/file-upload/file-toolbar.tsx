@@ -1,9 +1,14 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useCallback, useId, useState } from 'react'
+import { Filter, Grid2X2, List, Plus, Search, X } from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { FileWithMetadata } from '@/lib/types/file'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { FileUtils } from '@/lib/file-utils'
+import { FileWithMetadata } from '@/lib/types/file'
 
 interface FileToolbarProps {
   files: FileWithMetadata[]
@@ -26,189 +31,148 @@ export function FileToolbar({
   selectedCategory = 'all',
   onCategoryChange,
   onUploadClick,
-  className = ''
+  className = '',
 }: FileToolbarProps) {
   const [showFilters, setShowFilters] = useState(false)
+  const filtersId = useId()
 
   const categories = [
-    { id: 'all', label: 'All Files', count: files.length },
-    { id: 'image', label: 'Images', count: files.filter(f => FileUtils.getMimeTypeCategory(f.mimeType) === 'image').length },
-    { id: 'document', label: 'Documents', count: files.filter(f => FileUtils.getMimeTypeCategory(f.mimeType) === 'document').length },
-    { id: 'text', label: 'Text Files', count: files.filter(f => FileUtils.getMimeTypeCategory(f.mimeType) === 'text').length },
-    { id: 'archive', label: 'Archives', count: files.filter(f => FileUtils.getMimeTypeCategory(f.mimeType) === 'archive').length },
-  ].filter(category => category.count > 0 || category.id === 'all')
+    { id: 'all', label: 'All files', count: files.length },
+    { id: 'image', label: 'Images', count: files.filter((file) => FileUtils.getMimeTypeCategory(file.mimeType) === 'image').length },
+    { id: 'document', label: 'Documents', count: files.filter((file) => FileUtils.getMimeTypeCategory(file.mimeType) === 'document').length },
+    { id: 'text', label: 'Text files', count: files.filter((file) => FileUtils.getMimeTypeCategory(file.mimeType) === 'text').length },
+    { id: 'archive', label: 'Archives', count: files.filter((file) => FileUtils.getMimeTypeCategory(file.mimeType) === 'archive').length },
+  ].filter((category) => category.count > 0 || category.id === 'all')
 
   const totalSize = files.reduce((total, file) => total + file.size, 0)
 
-  const handleCategoryClick = useCallback((categoryId: string) => {
-    onCategoryChange?.(categoryId)
-  }, [onCategoryChange])
+  const handleCategoryClick = useCallback(
+    (categoryId: string) => onCategoryChange?.(categoryId),
+    [onCategoryChange],
+  )
 
-  const clearSearch = useCallback(() => {
-    onSearchChange?.('')
-  }, [onSearchChange])
+  const clearSearch = useCallback(() => onSearchChange?.(''), [onSearchChange])
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {/* Main Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Left side - File count and upload */}
-        <div className="flex items-center space-x-4">
-          <div className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{files.length}</span> files
-            {totalSize > 0 && (
-              <span className="ml-2">• {FileUtils.formatFileSize(totalSize)}</span>
-            )}
-          </div>
-          
-          {onUploadClick && (
-            <Button
-              onClick={onUploadClick}
-              size="sm"
-              className="bg-accent hover:bg-accent/90 text-accent-foreground"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Upload Files
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <Badge variant="muted">
+            {files.length} {files.length === 1 ? 'file' : 'files'}
+            {totalSize > 0 ? ` · ${FileUtils.formatFileSize(totalSize)}` : ''}
+          </Badge>
+          {onUploadClick ? (
+            <Button type="button" size="sm" variant="accent" onClick={onUploadClick}>
+              <Plus className="size-4" aria-hidden="true" />
+              Upload
             </Button>
-          )}
+          ) : null}
         </div>
 
-        {/* Right side - Search and controls */}
-        <div className="flex items-center space-x-2">
-          {/* Search */}
-          {onSearchChange && (
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search files..."
-                value={searchTerm}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="pl-8 pr-8 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent w-48"
-              />
-              <svg className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              {searchTerm && (
-                <button
-                  onClick={clearSearch}
-                  className="absolute right-2.5 top-2.5 w-4 h-4 text-muted-foreground hover:text-foreground"
-                >
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          {onSearchChange ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:min-w-64">
+              <label htmlFor={`${filtersId}-search`} className="sr-only">
+                Search files
+              </label>
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Input
+                  id={`${filtersId}-search`}
+                  type="search"
+                  placeholder="Search files"
+                  value={searchTerm}
+                  onChange={(event) => onSearchChange(event.target.value)}
+                  className="min-w-0 pl-10"
+                />
+              </div>
+              {searchTerm ? (
+                <Button type="button" variant="outline" size="icon-sm" onClick={clearSearch} aria-label="Clear file search">
+                  <X className="size-4" aria-hidden="true" />
+                </Button>
+              ) : null}
             </div>
-          )}
+          ) : null}
 
-          {/* Filter Toggle */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-            className={showFilters ? 'bg-muted' : ''}
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z" />
-            </svg>
-            Filter
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant={showFilters ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={() => setShowFilters((current) => !current)}
+              aria-expanded={showFilters}
+              aria-controls={filtersId}
+            >
+              <Filter className="size-4" aria-hidden="true" />
+              Filter
+            </Button>
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center border border-border rounded-md">
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => onViewModeChange('list')}
-              className="rounded-r-none border-r border-border"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-              </svg>
-            </Button>
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => onViewModeChange('grid')}
-              className="rounded-l-none"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-              </svg>
-            </Button>
+            <div className="flex items-center gap-2" role="group" aria-label="File view">
+              <Button
+                type="button"
+                variant={viewMode === 'list' ? 'secondary' : 'outline'}
+                size="icon-sm"
+                onClick={() => onViewModeChange('list')}
+                aria-label="List view"
+                aria-pressed={viewMode === 'list'}
+              >
+                <List className="size-4" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === 'grid' ? 'secondary' : 'outline'}
+                size="icon-sm"
+                onClick={() => onViewModeChange('grid')}
+                aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
+              >
+                <Grid2X2 className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Category Filters */}
-      {showFilters && onCategoryChange && (
-        <div className="flex flex-wrap gap-2 p-4 bg-muted/30 rounded-lg border border-border">
-          <div className="text-sm font-medium text-foreground mb-2 w-full">Filter by type:</div>
-          {categories.map((category) => (
-            <Button
-              key={category.id}
-              variant={selectedCategory === category.id ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleCategoryClick(category.id)}
-              className="text-xs"
-            >
-              {category.label}
-              <span className="ml-2 bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full text-xs">
-                {category.count}
-              </span>
-            </Button>
-          ))}
-        </div>
-      )}
+      {showFilters && onCategoryChange ? (
+        <Card id={filtersId} tone="note" className="gap-3 p-4">
+          <p className="text-sm font-black">Type</p>
+          <div className="flex flex-wrap gap-2">
+            {categories.map((category) => (
+              <Button
+                key={category.id}
+                type="button"
+                variant={selectedCategory === category.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleCategoryClick(category.id)}
+                aria-pressed={selectedCategory === category.id}
+              >
+                {category.label}
+                <span aria-hidden="true">({category.count})</span>
+              </Button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
-      {/* Active Filters Display */}
-      {(searchTerm || selectedCategory !== 'all') && (
-        <div className="flex items-center space-x-2 text-sm">
-          <span className="text-muted-foreground">Active filters:</span>
-          
-          {searchTerm && (
-            <div className="flex items-center space-x-1 bg-accent/10 text-accent px-2 py-1 rounded-md">
-              <span>Search: &quot;{searchTerm}&quot;</span>
-              <button
-                onClick={clearSearch}
-                className="w-4 h-4 hover:text-accent/80"
-              >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
-          
-          {selectedCategory !== 'all' && (
-            <div className="flex items-center space-x-1 bg-accent/10 text-accent px-2 py-1 rounded-md">
-              <span>Type: {categories.find(c => c.id === selectedCategory)?.label}</span>
-              <button
-                onClick={() => handleCategoryClick('all')}
-                className="w-4 h-4 hover:text-accent/80"
-              >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
-          
+      {searchTerm || selectedCategory !== 'all' ? (
+        <div className="flex flex-wrap items-center gap-2" aria-label="Active file filters">
+          {searchTerm ? <Badge>“{searchTerm}”</Badge> : null}
+          {selectedCategory !== 'all' ? (
+            <Badge>{categories.find((category) => category.id === selectedCategory)?.label ?? selectedCategory}</Badge>
+          ) : null}
           <Button
+            type="button"
             variant="ghost"
             size="sm"
             onClick={() => {
               onSearchChange?.('')
               onCategoryChange?.('all')
             }}
-            className="text-xs"
           >
-            Clear all
+            Clear
           </Button>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

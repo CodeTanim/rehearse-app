@@ -3,6 +3,18 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import { z } from "zod"
+import {
+  AUTH_RATE_LIMITS,
+  consumeRateLimit,
+  getClientIdentifier,
+  resetRateLimit,
+} from "@/lib/auth/rate-limit"
+
+const credentialsSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(1).max(128),
+})
 
 export const authOptions = {
   adapter: PrismaAdapter(prisma),
@@ -13,14 +25,28 @@ export const authOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null
-        }
+      async authorize(credentials, request) {
+        const clientIdentifier = getClientIdentifier(request.headers)
+        const clientLimit = consumeRateLimit({
+          scope: "login-client",
+          identifier: clientIdentifier,
+          policy: AUTH_RATE_LIMITS.loginByClient,
+        })
+        if (!clientLimit.allowed) return null
+
+        const parsed = credentialsSchema.safeParse(credentials)
+        if (!parsed.success) return null
+
+        const principalLimit = consumeRateLimit({
+          scope: "login-principal",
+          identifier: parsed.data.email,
+          policy: AUTH_RATE_LIMITS.loginByPrincipal,
+        })
+        if (!principalLimit.allowed) return null
 
         const user = await prisma.user.findUnique({
           where: {
-            email: credentials.email as string
+            email: parsed.data.email
           }
         })
 
@@ -29,13 +55,20 @@ export const authOptions = {
         }
 
         const isPasswordValid = await bcrypt.compare(
-          credentials.password as string,
+          parsed.data.password,
           user.password
         )
 
         if (!isPasswordValid) {
           return null
         }
+
+        // The principal bucket tracks consecutive failures, not ordinary
+        // successful sign-ins by the account owner.
+        resetRateLimit({
+          scope: "login-principal",
+          identifier: parsed.data.email,
+        })
 
         return {
           id: user.id,

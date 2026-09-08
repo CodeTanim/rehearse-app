@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { NOTE_CONTENT_MAX_LENGTH, NOTE_TITLE_MAX_LENGTH } from '@/lib/note-constraints'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const createNoteSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
-  content: z.string().min(1, 'Content is required'),
+  title: z
+    .string()
+    .max(NOTE_TITLE_MAX_LENGTH, `Title must be ${NOTE_TITLE_MAX_LENGTH} characters or fewer`)
+    .trim()
+    .min(1, 'Title is required'),
+  content: z
+    .string()
+    .max(
+      NOTE_CONTENT_MAX_LENGTH,
+      `Content must be ${NOTE_CONTENT_MAX_LENGTH.toLocaleString('en-US')} characters or fewer`,
+    )
+    .trim()
+    .min(1, 'Content is required'),
 })
-
-// Schema for potential future use
-// const updateNoteSchema = z.object({
-//   title: z.string().min(1, 'Title is required').max(200, 'Title must be less than 200 characters').optional(),
-//   content: z.string().min(1, 'Content is required').optional(),
-// })
 
 // GET /api/skill-folders/[id]/notes - Get all notes in a skill folder
 export async function GET(
@@ -84,7 +90,12 @@ export async function POST(
     }
 
     // Parse and validate request body
-    const body = await request.json()
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400 })
+    }
     const validatedData = createNoteSchema.parse(body)
 
     // Check for duplicate note titles in the same folder

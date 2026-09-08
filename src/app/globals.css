@@ -1,38 +1,76 @@
 @import "tailwindcss";
 
 :root {
-  /* Warm Academic Theme */
-  --background: #F7F4F0;
-  --foreground: #3D3530;
-  --card: #FEFCF8;
-  --card-foreground: #3D3530;
-  --primary: #F2ECE4;
-  --primary-foreground: #3D3530;
-  --secondary: #F0EBE5;
-  --secondary-foreground: #3D3530;
-  --muted: #F0EBE5;
-  --muted-foreground: #8B7D70;
-  --accent: #E6A045;
-  --accent-foreground: #2D3D2D;
-  --destructive: #B91C1C;
-  --destructive-foreground: #FFFFFF;
-  --border: #D4A574;
-  --input: #FFFFFF;
-  --ring: #D4A574;
-  --radius: 0.75rem;
-  
-  /* Academic specific colors */
-  --sage-light: #F0EBE5;
-  --sage: #F2ECE4;
-  --sage-dark: #E8E1D6;
-  --terracotta-light: #F0E8DF;
-  --terracotta: #D4A574;
-  --terracotta-dark: #B8956A;
-  --amber: #E6A045;
-  --amber-light: #F3E5C7;
-  --success: #6B8C6B;
-  --warning: #E6A045;
-  --info: #8FA8B2;
+  color-scheme: light;
+
+  /* Constellation Garden: white, mist, and soft botanical greens. */
+  --garden-mist: #f5faf6;
+  --garden-mist-deep: #e8f3eb;
+  --garden-white: #ffffff;
+  --garden-ink: #20372c;
+  --garden-ink-soft: #62746a;
+  --garden-forest: #4a7a5f;
+  --garden-forest-light: #dceee2;
+  --garden-blue: #477c76;
+  --garden-blue-light: #e1f1ee;
+  --garden-sprout: #86aa76;
+  --garden-sprout-light: #eaf4e5;
+  --garden-coral: #b86f61;
+  --garden-coral-light: #f8e8e4;
+
+  --background: var(--garden-mist);
+  --foreground: var(--garden-ink);
+  --card: var(--garden-white);
+  --card-foreground: var(--garden-ink);
+  --primary: var(--garden-forest);
+  --primary-foreground: #ffffff;
+  --secondary: #edf5ef;
+  --secondary-foreground: #294236;
+  --muted: #eef5f0;
+  --muted-foreground: #64766b;
+  --accent: var(--garden-sprout-light);
+  --accent-foreground: #334b2d;
+  --destructive: #a85448;
+  --destructive-foreground: #ffffff;
+  --border: #d6e5da;
+  --input: #ffffff;
+  --ring: var(--garden-blue);
+  --link: #3e7257;
+  --link-hover: #2f5943;
+  --radius: 0.875rem;
+
+  /* Compatibility aliases while paper-themed call sites are retired. */
+  --paper-canvas: var(--background);
+  --paper-sheet: var(--card);
+  --paper-note: #f0f7f1;
+  --paper-sage: var(--garden-forest-light);
+  --paper-blue: var(--garden-blue-light);
+  --paper-rose: var(--garden-coral-light);
+  --paper-tape: transparent;
+  --ink: var(--foreground);
+  --ink-soft: var(--muted-foreground);
+  --pencil-blue: var(--garden-blue);
+  --pencil-sage: var(--primary);
+  --pencil-ochre: #617b4c;
+  --pencil-terracotta: var(--garden-coral);
+  --paper-shadow: rgb(23 33 27 / 0%);
+
+  --sage-light: var(--garden-forest-light);
+  --sage: #8eb69a;
+  --sage-dark: #4a7a5f;
+  --terracotta-light: var(--garden-coral-light);
+  --terracotta: #c88477;
+  --terracotta-dark: #91483e;
+  --amber: #617746;
+  --amber-light: #edf5e6;
+  --success: #3f6f54;
+  --warning: #596e3f;
+  --info: var(--garden-blue);
+  --mastery-unassessed: #6f7d75;
+  --mastery-learning: #617746;
+  --mastery-demonstrated: var(--garden-blue);
+  --mastery-learned: #3f6f54;
+  --mastery-refresh: var(--garden-coral);
 }
 
 @theme inline {
@@ -53,9 +91,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
   --radius: var(--radius);
-  
-  /* Academic theme colors */
+
   --color-sage-light: var(--sage-light);
   --color-sage: var(--sage);
   --color-sage-dark: var(--sage-dark);
@@ -67,62 +106,822 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-info: var(--info);
-  
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+
+  --font-sans: var(--font-rehearse-sans), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: var(--font-rehearse-display), Iowan Old Style, Baskerville, Georgia, serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --font-hand: var(--font-sans);
 }
 
-/* Dark mode temporarily disabled to show light theme
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #2D2A26;
-    --foreground: #F5F3F0;
-    --card: #3A342D;
-    --card-foreground: #F5F3F0;
-    --primary: #F5F3F0;
-    --primary-foreground: #2D2A26;
-    --secondary: #4A423A;
-    --secondary-foreground: #F5F3F0;
-    --muted: #4A423A;
-    --muted-foreground: #B8B3AD;
-    --accent: #E6A045;
-    --accent-foreground: #2D2A26;
-    --destructive: #DC6B47;
-    --destructive-foreground: #F5F3F0;
-    --border: #4A423A;
-    --input: #3A342D;
-    --ring: #D4A574;
-    
-    --sage-light: #4A423A;
-    --sage: #F5F3F0;
-    --sage-dark: #E8E5E0;
-    --terracotta-light: #4A423A;
-    --terracotta: #D4A574;
-    --amber: #E6A045;
-    --amber-light: #4A423A;
-    --success: #8FA08F;
-    --warning: #E6A045;
-    --info: #8FA8B2;
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
-*/
+
+html {
+  min-width: 320px;
+  background: var(--background);
+}
 
 body {
+  min-height: 100vh;
+  margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
 }
 
-/* Force error text to be visible */
+::selection {
+  background: var(--garden-sprout-light);
+  color: var(--foreground);
+}
+
+.brand-wordmark,
+.font-display {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 70, "WONK" 1;
+}
+
+.brand-wordmark {
+  font-weight: 560;
+  letter-spacing: -0.035em;
+}
+
+.brand-mark-symbol {
+  filter: drop-shadow(0 5px 12px rgb(0 0 0 / 12%));
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.font-hand {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+}
+
+.paper-canvas {
+  background: var(--background);
+}
+
+.paper-sheet {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: 0 18px 48px rgb(31 54 43 / 5%);
+  rotate: none;
+  transform: none;
+}
+
+.paper-sheet[data-tone="note"] {
+  background: var(--paper-note);
+}
+
+.paper-sheet[data-tone="sage"] {
+  background: var(--paper-sage);
+}
+
+.paper-sheet[data-tone="blue"] {
+  background: var(--paper-blue);
+}
+
+.paper-sheet[data-tone="rose"] {
+  background: var(--paper-rose);
+}
+
+.paper-sheet[data-interactive="true"] {
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.paper-sheet[data-interactive="true"]:hover,
+.paper-sheet[data-interactive="true"]:focus-within {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--card) 96%, var(--primary));
+}
+
+.paper-tape {
+  display: none;
+}
+
+.ink-underline {
+  display: inline-block;
+}
+
+.ink-underline::after {
+  display: none;
+}
+
+.paper-stamp {
+  display: inline-flex;
+  min-height: 1.75rem;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.25rem 0.625rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  rotate: none;
+  box-shadow: none;
+  text-transform: none;
+  transform: none;
+}
+
+.paper-leaf {
+  display: grid;
+  min-height: 5.5rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.875rem;
+  background: var(--card);
+  box-shadow: none;
+  rotate: none;
+  text-align: center;
+  transform: none;
+}
+
+.paper-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  box-shadow: none;
+  font-weight: 600;
+  line-height: 1.25;
+  translate: none;
+  text-decoration: none;
+  transform: none;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
+    transform 140ms ease;
+}
+
+.paper-button:hover:not(:disabled) {
+  box-shadow: 0 7px 20px rgb(20 48 37 / 10%);
+  transform: translateY(-1px);
+}
+
+.paper-button:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(0);
+}
+
+.paper-button:disabled,
+.paper-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.paper-button--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.paper-button--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 88%, black);
+}
+
+.paper-button--accent {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.paper-button--accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 90%, var(--primary));
+}
+
+.paper-button--secondary {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.paper-button--secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--secondary) 88%, var(--foreground));
+}
+
+.paper-button--outline {
+  border-color: var(--border);
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.paper-button--outline:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: var(--muted);
+}
+
+.paper-button--ghost,
+.paper-button--link {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+.paper-button--ghost:hover:not(:disabled),
+.paper-button--link:hover:not(:disabled) {
+  background: var(--muted);
+  box-shadow: none;
+}
+
+.paper-button--link {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 0.22em;
+}
+
+.paper-button--destructive {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+
+.paper-button--destructive:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--destructive) 88%, black);
+}
+
+.paper-input {
+  min-height: 2.75rem;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background-color: var(--input);
+  box-shadow: none;
+  color: var(--foreground);
+}
+
+.paper-input::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+
+.paper-input:focus-visible {
+  border-color: var(--ring);
+}
+
+.paper-input:disabled {
+  cursor: not-allowed;
+  background: var(--muted);
+  opacity: 0.58;
+}
+
+.paper-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgb(23 33 27 / 42%);
+  backdrop-filter: blur(1px);
+}
+
+.paper-dialog-content {
+  position: relative;
+  z-index: 51;
+  width: min(100%, 34rem);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  box-shadow: 0 20px 50px rgb(23 33 27 / 14%);
+}
+
+.paper-dialog-content[data-size="sm"] {
+  width: min(100%, 28rem);
+}
+
+.paper-dialog-content[data-size="lg"] {
+  width: min(100%, 44rem);
+}
+
+.paper-dialog-content[data-size="xl"] {
+  width: min(100%, 58rem);
+}
+
+.paper-rule {
+  height: 1px;
+  border: 0;
+  background: var(--border);
+}
+
 .error-text {
-  color: #B91C1C !important;
+  color: var(--destructive) !important;
   font-weight: 500;
 }
 
-/* Line clamp utilities */
+.line-clamp-2,
 .line-clamp-3 {
-  overflow: hidden;
   display: -webkit-box;
+  overflow: hidden;
   -webkit-box-orient: vertical;
+}
+
+.line-clamp-2 {
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
   -webkit-line-clamp: 3;
+}
+
+/* Constellation Garden — the expressive surface is intentionally scoped to the map. */
+.constellation-frame {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  border: 1px solid color-mix(in srgb, var(--garden-forest) 18%, var(--border));
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at 8% 12%, rgb(134 170 118 / 13%) 0 1px, transparent 2px),
+    radial-gradient(circle at 86% 19%, rgb(71 124 118 / 8%) 0 1px, transparent 2px),
+    linear-gradient(135deg, rgb(255 255 255 / 97%), rgb(237 247 240 / 98%));
+  background-size: 31px 31px, 43px 43px, auto;
+  box-shadow: 0 28px 80px rgb(50 91 68 / 8%);
+}
+
+.constellation-frame::before,
+.constellation-frame::after {
+  position: absolute;
+  z-index: -1;
+  border: 1px solid rgb(74 122 95 / 10%);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+}
+
+.constellation-frame::before {
+  width: 28rem;
+  height: 28rem;
+  right: -15rem;
+  top: -16rem;
+  box-shadow: 0 0 0 4rem rgb(71 124 118 / 2%), 0 0 0 8rem rgb(74 122 95 / 2%);
+}
+
+.constellation-frame::after {
+  width: 20rem;
+  height: 20rem;
+  bottom: -13rem;
+  left: -10rem;
+  box-shadow: 0 0 0 3rem rgb(134 170 118 / 4%);
+}
+
+.constellation-frame__bar {
+  display: flex;
+  min-height: 3.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgb(74 122 95 / 12%);
+  padding: 0.65rem 0.8rem 0.65rem 1.25rem;
+  background: rgb(255 255 255 / 68%);
+  backdrop-filter: blur(10px);
+}
+
+.constellation-frame__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.constellation-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  min-width: 0;
+}
+
+.constellation-stage {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.constellation-stage::before {
+  position: absolute;
+  inset: 8% 5%;
+  border: 1px solid rgb(71 124 118 / 7%);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  transform: rotate(-8deg);
+}
+
+.constellation-viewport {
+  position: absolute;
+  inset: 0;
+  transform-origin: top left;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+}
+
+.constellation-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.constellation-line {
+  fill: none;
+  stroke: color-mix(in srgb, var(--garden-forest) 72%, var(--garden-blue));
+  stroke-linecap: round;
+  stroke-width: 1.75;
+  vector-effect: non-scaling-stroke;
+}
+
+.constellation-line[data-kind="PREREQUISITE"] {
+  stroke: var(--garden-blue);
+}
+
+.constellation-line[data-active="false"] {
+  opacity: 0.38;
+}
+
+.constellation-node-list {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.constellation-node-position {
+  position: absolute;
+  width: clamp(9.5rem, 24%, 13rem);
+  min-width: 0;
+}
+
+.constellation-node {
+  --node-accent: var(--garden-forest);
+  --node-wash: var(--garden-forest-light);
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 8.25rem;
+  place-items: center;
+  border: 0;
+  padding: 1.2rem 1rem;
+  background: transparent;
+  color: var(--garden-ink);
+  cursor: pointer;
+  text-align: center;
+  isolation: isolate;
+}
+
+.constellation-node::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border: 1.5px solid color-mix(in srgb, var(--node-accent) 86%, var(--garden-ink));
+  border-radius: 68% 32% 64% 36% / 58% 55% 45% 42%;
+  background:
+    linear-gradient(155deg, rgb(255 255 255 / 58%), transparent 48%),
+    color-mix(in srgb, var(--node-wash) 58%, var(--garden-white));
+  box-shadow: 0 14px 28px rgb(25 52 41 / 9%);
+  content: "";
+  transform: rotate(var(--node-tilt, -2deg));
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.constellation-node:hover::before,
+.constellation-node[data-selected="true"]::before {
+  border-color: var(--node-accent);
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--node-accent) 16%, transparent);
+  transform: rotate(0deg) translateY(-2px);
+}
+
+.constellation-node:focus-visible {
+  outline: 0;
+}
+
+.constellation-node:focus-visible::before {
+  outline: 3px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.constellation-node[data-stage="UNASSESSED"] {
+  --node-accent: #6f7d75;
+  --node-wash: #edf2ee;
+}
+
+.constellation-node[data-stage="LEARNING"] {
+  --node-accent: #6d8658;
+  --node-wash: #edf5e6;
+}
+
+.constellation-node[data-stage="DEMONSTRATED"] {
+  --node-accent: var(--garden-blue);
+  --node-wash: var(--garden-blue-light);
+}
+
+.constellation-node[data-stage="WELL_LEARNED"] {
+  --node-accent: var(--garden-forest);
+  --node-wash: var(--garden-forest-light);
+}
+
+.constellation-node__content {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 0.35rem;
+}
+
+.constellation-node__glyph {
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--node-accent) 60%, transparent);
+  border-radius: 50%;
+  color: var(--node-accent);
+}
+
+.constellation-node__title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 1.7vw, 1.25rem);
+  font-weight: 570;
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+}
+
+.constellation-node__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: color-mix(in srgb, var(--node-accent) 84%, var(--garden-ink));
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.constellation-node__state::before {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--node-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-accent) 13%, transparent);
+  content: "";
+}
+
+.constellation-mobile-detail {
+  display: none;
+}
+
+.constellation-inspector {
+  position: sticky;
+  top: 7.25rem;
+  align-self: start;
+  min-width: 0;
+  margin: 1.25rem 1.25rem 1.25rem 0;
+  border: 1px solid color-mix(in srgb, var(--garden-forest) 24%, var(--border));
+  border-radius: 1.7rem 1.7rem 1.7rem 0.7rem;
+  padding: 1.25rem;
+  background: rgb(255 255 255 / 88%);
+  box-shadow: 0 20px 48px rgb(50 91 68 / 9%);
+  backdrop-filter: blur(14px);
+}
+
+.constellation-inspector__orb {
+  position: relative;
+  display: grid;
+  width: 4.5rem;
+  height: 4.5rem;
+  place-items: center;
+  margin-bottom: 1rem;
+  border: 1px solid var(--garden-forest);
+  border-radius: 50%;
+  color: var(--garden-forest);
+  box-shadow: inset 0 0 0 0.55rem rgb(74 122 95 / 7%);
+}
+
+.constellation-inspector__orb::after {
+  position: absolute;
+  width: 0.55rem;
+  height: 0.55rem;
+  right: 0.15rem;
+  top: 0.5rem;
+  border-radius: 50%;
+  background: var(--garden-sprout);
+  box-shadow: 0 0 0 4px rgb(134 170 118 / 14%);
+  content: "";
+}
+
+.constellation-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1rem 0;
+  border-block: 1px solid var(--border);
+}
+
+.constellation-stat {
+  min-width: 0;
+  padding: 0.9rem 0;
+}
+
+.constellation-stat + .constellation-stat {
+  border-left: 1px solid var(--border);
+  padding-left: 0.9rem;
+}
+
+.connection-panel {
+  border: 1px solid color-mix(in srgb, var(--garden-forest) 18%, var(--border));
+  border-radius: 1.25rem;
+  background: rgb(255 255 255 / 76%);
+}
+
+.connection-panel > summary {
+  display: flex;
+  min-height: 3.5rem;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+}
+
+.connection-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.connection-panel[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 1023px) {
+  .constellation-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .constellation-inspector {
+    position: relative;
+    top: auto;
+    margin: 0 1rem 1rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .constellation-frame {
+    border-radius: 1.35rem;
+  }
+
+  .constellation-frame__bar {
+    align-items: flex-start;
+    padding: 0.75rem;
+  }
+
+  .constellation-stage {
+    height: auto !important;
+    min-height: 0;
+    overflow: visible;
+    padding: 0.8rem;
+    touch-action: pan-y !important;
+    cursor: auto !important;
+  }
+
+  .constellation-viewport {
+    position: relative;
+    inset: auto;
+    height: auto;
+    transform: none !important;
+    will-change: auto;
+  }
+
+  .constellation-frame__controls [data-canvas-control] {
+    display: none;
+  }
+
+  .constellation-stage::before,
+  .constellation-lines {
+    display: none;
+  }
+
+  .constellation-node-list {
+    position: static;
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .constellation-node-position {
+    position: static;
+    width: 100%;
+  }
+
+  .constellation-node {
+    min-height: 5.25rem;
+    justify-items: start;
+    padding: 0.85rem 1.1rem;
+    text-align: left;
+  }
+
+  .constellation-node::before {
+    border-radius: 1.15rem 2.25rem 2.25rem 1.15rem;
+    transform: none;
+  }
+
+  .constellation-node:hover::before,
+  .constellation-node[data-selected="true"]::before {
+    transform: translateY(-1px);
+  }
+
+  .constellation-node__content {
+    grid-template-columns: 2.15rem minmax(0, 1fr);
+    justify-items: start;
+    column-gap: 0.75rem;
+    text-align: left;
+  }
+
+  .constellation-node__glyph {
+    grid-row: 1 / span 2;
+  }
+
+  .constellation-node__title {
+    font-size: 1.1rem;
+  }
+
+  .constellation-mobile-detail {
+    display: block;
+    margin: 0.15rem 0.35rem 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--garden-forest) 18%, var(--border));
+    border-radius: 1rem;
+    padding: 0.85rem 1rem;
+    background: rgb(255 255 255 / 82%);
+  }
+
+  .constellation-inspector {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .constellation-frame {
+    background: Canvas;
+  }
+
+  .constellation-frame::before,
+  .constellation-frame::after,
+  .constellation-stage::before {
+    display: none;
+  }
+
+  .constellation-node::before,
+  .constellation-inspector {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    box-shadow: none;
+  }
+
+  .constellation-line {
+    stroke: CanvasText;
+  }
+}
+
+@keyframes paper-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.paper-dialog-content[data-state="open"] {
+  animation: paper-dialog-in 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

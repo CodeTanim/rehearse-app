@@ -4,8 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const createSkillFolderSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  description: z.string().optional(),
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
+  description: z.string().trim().max(500, 'Description must be 500 characters or fewer').optional(),
   color: z.string().regex(/^#[0-9A-F]{6}$/i, 'Invalid color format').optional()
 })
 

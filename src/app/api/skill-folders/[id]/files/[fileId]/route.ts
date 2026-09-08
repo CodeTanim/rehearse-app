@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { FileStorage } from '@/lib/file-storage-server'
-import path from 'path'
+import { withStorageMutationLock } from '@/lib/storage-mutation-lock'
 
 type Params = {
   id: string
@@ -61,34 +61,66 @@ export async function DELETE(
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = session.user.id
 
-    // Verify skill folder belongs to user and file exists
-    const file = await prisma.file.findFirst({
-      where: {
-        id: params.fileId,
-        skillFolder: {
-          id: params.id,
-          userId: session.user.id
+    return withStorageMutationLock(async () => {
+      // Verify ownership under the same lock as folder deletion and uploads.
+      const file = await prisma.file.findFirst({
+        where: {
+          id: params.fileId,
+          skillFolder: {
+            id: params.id,
+            userId
+          }
         }
+      })
+
+      if (!file) {
+        return NextResponse.json({ error: 'File not found' }, { status: 404 })
       }
-    })
 
-    if (!file) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 })
-    }
-
-    // Delete file from storage
-    const filePath = path.join(process.cwd(), 'uploads', params.id, file.filename)
-    await FileStorage.deleteFile(filePath)
-
-    // Delete file record from database
-    await prisma.file.delete({
-      where: {
-        id: params.fileId
+      const filePath = FileStorage.getFilePath(params.id, file.filename)
+      try {
+        // Keep metadata available whenever byte removal fails.
+        await FileStorage.deleteFile(filePath)
+      } catch (storageError) {
+        console.error('Error deleting stored file:', {
+          fileId: params.fileId,
+          skillFolderId: params.id,
+          error: storageError,
+        })
+        return NextResponse.json(
+          {
+            code: 'FILE_STORAGE_DELETE_FAILED',
+            error: 'The stored file could not be removed. Its record was not deleted; check storage permissions and retry.',
+          },
+          { status: 500 }
+        )
       }
-    })
 
-    return NextResponse.json({ message: 'File deleted successfully' })
+      try {
+        await prisma.file.delete({
+          where: {
+            id: params.fileId
+          }
+        })
+      } catch (databaseError) {
+        console.error('Stored file was removed but metadata deletion failed:', {
+          fileId: params.fileId,
+          skillFolderId: params.id,
+          error: databaseError,
+        })
+        return NextResponse.json(
+          {
+            code: 'FILE_METADATA_DELETE_FAILED',
+            error: 'The stored file was removed, but its record could not be deleted. Retry to finish cleanup.',
+          },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ message: 'File deleted successfully' })
+    })
   } catch (error) {
     console.error('Error deleting file:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

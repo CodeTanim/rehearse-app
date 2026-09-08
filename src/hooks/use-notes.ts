@@ -14,13 +14,13 @@ export function useNotes(skillFolderId: string) {
       const response = await fetch(`/api/skill-folders/${skillFolderId}/notes`)
       
       if (!response.ok) {
-        throw new Error('Failed to fetch notes')
+        throw new Error('Couldn’t load notes.')
       }
       
       const data = await response.json()
       setNotes(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      setError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
       setIsLoading(false)
     }
@@ -41,7 +41,7 @@ export function useNotes(skillFolderId: string) {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to create note')
+        throw new Error(errorData.error || 'Couldn’t save note.')
       }
       
       const newNote = await response.json()
@@ -51,7 +51,7 @@ export function useNotes(skillFolderId: string) {
       
       return newNote
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {
@@ -74,7 +74,7 @@ export function useNotes(skillFolderId: string) {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update note')
+        throw new Error(errorData.error || 'Couldn’t save note.')
       }
       
       const updatedNote = await response.json()
@@ -86,7 +86,7 @@ export function useNotes(skillFolderId: string) {
       
       return updatedNote
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {
@@ -105,12 +105,12 @@ export function useNotes(skillFolderId: string) {
       
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to delete note')
+        throw new Error(errorData.error || 'Couldn’t delete note.')
       }
       
       setNotes(prev => prev.filter(note => note.id !== noteId))
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {
@@ -126,12 +126,12 @@ export function useNotes(skillFolderId: string) {
       const response = await fetch(`/api/skill-folders/${skillFolderId}/notes/${noteId}`)
       
       if (!response.ok) {
-        throw new Error('Failed to fetch note')
+        throw new Error('Couldn’t load note.')
       }
       
       return await response.json()
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      const errorMessage = err instanceof Error ? err.message : 'Something went wrong.'
       setError(errorMessage)
       throw new Error(errorMessage)
     } finally {

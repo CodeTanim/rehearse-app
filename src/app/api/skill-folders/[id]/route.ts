@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { FileStorage } from '@/lib/file-storage-server'
+import { withStorageMutationLock } from '@/lib/storage-mutation-lock'
 import { z } from 'zod'
 
 const updateSkillFolderSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters').optional(),
-  description: z.string().optional(),
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name must be less than 100 characters').optional(),
+  description: z.string().trim().max(500, 'Description must be 500 characters or fewer').optional(),
   color: z.string().regex(/^#[0-9A-F]{6}$/i, 'Invalid color format').optional()
 })
 
@@ -74,7 +76,6 @@ export async function PUT(
     const body = await request.json()
     const validatedData = updateSkillFolderSchema.parse(body)
 
-    // Check if the skill folder exists and belongs to the user
     const existingFolder = await prisma.skillFolder.findFirst({
       where: {
         id: params.id,
@@ -147,27 +148,62 @@ export async function DELETE(
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const userId = session.user.id
 
-    // Check if the skill folder exists and belongs to the user
-    const existingFolder = await prisma.skillFolder.findFirst({
-      where: {
-        id: params.id,
-        userId: session.user.id
+    return withStorageMutationLock(async () => {
+      // Check ownership inside the same local mutation lock used by uploads.
+      const existingFolder = await prisma.skillFolder.findFirst({
+        where: {
+          id: params.id,
+          userId
+        }
+      })
+
+      if (!existingFolder) {
+        return NextResponse.json({ error: 'Skill folder not found' }, { status: 404 })
       }
-    })
 
-    if (!existingFolder) {
-      return NextResponse.json({ error: 'Skill folder not found' }, { status: 404 })
-    }
-
-    // Delete the skill folder (cascade will handle related data)
-    await prisma.skillFolder.delete({
-      where: {
-        id: params.id
+      try {
+        // Stored bytes are removed first so a storage failure never erases the
+        // metadata an operator needs to locate and retry the cleanup.
+        await FileStorage.deleteSkillFolderFiles(params.id)
+      } catch (storageError) {
+        console.error('Error deleting skill folder storage:', {
+          skillFolderId: params.id,
+          error: storageError,
+        })
+        return NextResponse.json(
+          {
+            code: 'FOLDER_STORAGE_DELETE_FAILED',
+            error: 'Stored files could not be removed. The skill folder was not deleted; check storage permissions and retry.',
+          },
+          { status: 500 }
+        )
       }
-    })
 
-    return NextResponse.json({ message: 'Skill folder deleted successfully' })
+      try {
+        // Cascade handles the related metadata only after storage succeeds.
+        await prisma.skillFolder.delete({
+          where: {
+            id: params.id
+          }
+        })
+      } catch (databaseError) {
+        console.error('Stored files were removed but skill folder metadata deletion failed:', {
+          skillFolderId: params.id,
+          error: databaseError,
+        })
+        return NextResponse.json(
+          {
+            code: 'FOLDER_METADATA_DELETE_FAILED',
+            error: 'Stored files were removed, but the skill folder record could not be deleted. Retry to finish cleanup.',
+          },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ message: 'Skill folder deleted successfully' })
+    })
   } catch (error) {
     console.error('Error deleting skill folder:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

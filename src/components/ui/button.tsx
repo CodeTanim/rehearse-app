@@ -1,65 +1,92 @@
-import { forwardRef, ButtonHTMLAttributes } from "react"
+import { forwardRef, type ButtonHTMLAttributes } from "react"
+import { LoaderCircleIcon } from "lucide-react"
+import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
-  size?: "default" | "sm" | "lg" | "icon"
+const buttonVariants = cva(
+  "paper-button select-none whitespace-nowrap text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-60 aria-disabled:pointer-events-none aria-disabled:opacity-60",
+  {
+    variants: {
+      variant: {
+        default: "paper-button--primary",
+        accent: "paper-button--accent",
+        destructive: "paper-button--destructive",
+        outline: "paper-button--outline",
+        secondary: "paper-button--secondary",
+        ghost: "paper-button--ghost",
+        link: "paper-button--link",
+      },
+      size: {
+        default: "min-h-11 px-3.5 py-2",
+        sm: "min-h-10 px-3 py-1.5 text-sm",
+        lg: "min-h-11 px-5 py-2.5 text-sm",
+        icon: "size-11 shrink-0 p-0",
+        "icon-sm": "size-10 min-h-10 shrink-0 p-0",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+)
+
+export type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>["variant"]>
+export type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>["size"]>
+
+export function buttonClassName({
+  variant = "default",
+  size = "default",
+  className,
+}: {
+  variant?: ButtonVariant
+  size?: ButtonSize
+  className?: string
+} = {}) {
+  return cn(buttonVariants({ variant, size }), className)
+}
+
+export interface ButtonProps
+  extends ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
   isLoading?: boolean
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "default", size = "default", isLoading, children, disabled, ...props }, ref) => {
+  (
+    {
+      className,
+      variant = "default",
+      size = "default",
+      isLoading = false,
+      children,
+      disabled,
+      ...props
+    },
+    ref,
+  ) => {
+    const unavailable = disabled || isLoading
+
     return (
       <button
-        className={cn(
-          "inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-          {
-            "bg-primary text-primary-foreground border-2 border-terracotta/60 hover:bg-terracotta/10 hover:border-terracotta hover:shadow-lg hover:scale-[1.02] shadow-md transition-all duration-200": variant === "default",
-            "bg-destructive text-destructive-foreground hover:bg-destructive/90": variant === "destructive",
-            "border-2 border-terracotta/40 bg-background hover:bg-terracotta/5 hover:border-terracotta hover:shadow-md transition-all duration-200": variant === "outline",
-            "bg-secondary text-secondary-foreground hover:bg-secondary/80": variant === "secondary",
-            "hover:bg-accent hover:text-accent-foreground": variant === "ghost",
-            "text-primary underline-offset-4 hover:underline": variant === "link",
-          },
-          {
-            "h-10 px-4 py-2": size === "default",
-            "h-9 rounded-md px-3": size === "sm",
-            "h-11 rounded-md px-8": size === "lg",
-            "h-10 w-10": size === "icon",
-          },
-          className
-        )}
-        disabled={disabled || isLoading}
         ref={ref}
+        className={buttonVariants({ variant, size, className })}
+        disabled={unavailable}
+        aria-busy={isLoading || undefined}
         {...props}
       >
         {isLoading && (
-          <svg
-            className="mr-2 h-4 w-4 animate-spin"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
+          <LoaderCircleIcon
+            aria-hidden="true"
+            className="size-4 animate-spin"
+          />
         )}
+        {isLoading && <span className="sr-only">Loading. </span>}
         {children}
       </button>
     )
-  }
+  },
 )
 Button.displayName = "Button"
 
-export { Button }
+export { Button, buttonVariants }

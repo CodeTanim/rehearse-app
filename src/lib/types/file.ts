@@ -82,27 +82,12 @@ export const SUPPORTED_FILE_TYPES = [
   { extension: '.png', mimeType: 'image/png', category: 'image' },
   { extension: '.gif', mimeType: 'image/gif', category: 'image' },
   { extension: '.webp', mimeType: 'image/webp', category: 'image' },
-  { extension: '.svg', mimeType: 'image/svg+xml', category: 'image' },
   
   // Documents
   { extension: '.pdf', mimeType: 'application/pdf', category: 'document' },
-  { extension: '.doc', mimeType: 'application/msword', category: 'document' },
-  { extension: '.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', category: 'document' },
-  { extension: '.xls', mimeType: 'application/vnd.ms-excel', category: 'document' },
-  { extension: '.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', category: 'document' },
-  { extension: '.ppt', mimeType: 'application/vnd.ms-powerpoint', category: 'document' },
-  { extension: '.pptx', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', category: 'document' },
   
   // Text
   { extension: '.txt', mimeType: 'text/plain', category: 'text' },
   { extension: '.md', mimeType: 'text/markdown', category: 'text' },
-  { extension: '.csv', mimeType: 'text/csv', category: 'text' },
-  { extension: '.json', mimeType: 'application/json', category: 'text' },
-  { extension: '.js', mimeType: 'text/javascript', category: 'text' },
-  { extension: '.css', mimeType: 'text/css', category: 'text' },
-  { extension: '.html', mimeType: 'text/html', category: 'text' },
-  
-  // Archives
-  { extension: '.zip', mimeType: 'application/zip', category: 'archive' },
-  { extension: '.rar', mimeType: 'application/x-rar-compressed', category: 'archive' },
+  { extension: '.markdown', mimeType: 'text/markdown', category: 'text' },
 ] as const

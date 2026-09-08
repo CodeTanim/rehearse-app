@@ -10,7 +10,19 @@ export interface UploadWithProgressOptions {
   onProgress?: UploadProgressCallback
   onSuccess?: (response: unknown) => void
   onError?: (error: Error) => void
+  onCancel?: (error: UploadCancelledError) => void
   signal?: AbortSignal
+}
+
+export class UploadCancelledError extends Error {
+  constructor(message = 'Upload cancelled') {
+    super(message)
+    this.name = 'UploadCancelledError'
+  }
+}
+
+export function isUploadCancelledError(error: unknown): error is UploadCancelledError {
+  return error instanceof UploadCancelledError
 }
 
 export class UploadWithProgress {
@@ -24,77 +36,123 @@ export class UploadWithProgress {
 
   async upload(): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      this.xhr = new XMLHttpRequest()
+      const signal = this.options.signal
+
+      if (signal?.aborted) {
+        const error = new UploadCancelledError()
+        reject(error)
+        this.options.onCancel?.(error)
+        return
+      }
+
+      const xhr = new XMLHttpRequest()
+      this.xhr = xhr
       const formData = new FormData()
       formData.append('file', this.file)
+      let settled = false
+
+      const cleanup = () => {
+        signal?.removeEventListener('abort', handleSignalAbort)
+        if (this.xhr === xhr) this.xhr = null
+      }
+
+      const succeed = (response: unknown) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(response)
+        this.options.onSuccess?.(response)
+      }
+
+      const fail = (error: Error) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error)
+        this.options.onError?.(error)
+      }
+
+      const cancel = () => {
+        if (settled) return
+        settled = true
+        cleanup()
+        const error = new UploadCancelledError()
+        reject(error)
+        this.options.onCancel?.(error)
+      }
+
+      function handleSignalAbort() {
+        if (settled) return
+
+        if (xhr.readyState === XMLHttpRequest.UNSENT || xhr.readyState === XMLHttpRequest.DONE) {
+          cancel()
+          return
+        }
+
+        xhr.abort()
+      }
 
       // Progress tracking
-      this.xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (!settled && event.lengthComputable) {
           const progress = (event.loaded / event.total) * 100
           this.options.onProgress?.(Math.round(progress))
         }
       })
 
       // Success handler
-      this.xhr.addEventListener('load', () => {
-        if (this.xhr!.status >= 200 && this.xhr!.status < 300) {
+      xhr.addEventListener('load', () => {
+        if (settled) return
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          let response: unknown
           try {
-            const response = JSON.parse(this.xhr!.responseText)
-            this.options.onSuccess?.(response)
-            resolve(response)
-          } catch (error) {
-            const parseError = new Error('Failed to parse response')
-            this.options.onError?.(parseError)
-            reject(parseError)
+            response = JSON.parse(xhr.responseText)
+          } catch {
+            fail(new Error('Failed to parse response'))
+            return
           }
+          succeed(response)
         } else {
           let errorMessage = 'Upload failed'
           try {
-            const errorResponse = JSON.parse(this.xhr!.responseText)
+            const errorResponse = JSON.parse(xhr.responseText)
             errorMessage = errorResponse.error || errorMessage
           } catch {
             // Use default error message if response isn't JSON
           }
-          
-          const error = new Error(errorMessage)
-          this.options.onError?.(error)
-          reject(error)
+
+          fail(new Error(errorMessage))
         }
       })
 
       // Error handler
-      this.xhr.addEventListener('error', () => {
-        const error = new Error('Network error during upload')
-        this.options.onError?.(error)
-        reject(error)
-      })
+      xhr.addEventListener('error', () => fail(new Error('Network error during upload')))
 
       // Abort handler
-      this.xhr.addEventListener('abort', () => {
-        const error = new Error('Upload cancelled')
-        this.options.onError?.(error)
-        reject(error)
-      })
+      xhr.addEventListener('abort', cancel)
 
       // Handle external abort signal
-      if (this.options.signal) {
-        this.options.signal.addEventListener('abort', () => {
-          this.abort()
-        })
+      signal?.addEventListener('abort', handleSignalAbort, { once: true })
+
+      // The signal may have changed between the first check and listener setup.
+      if (signal?.aborted) {
+        handleSignalAbort()
+        return
       }
 
       // Start upload
-      this.xhr.open('POST', this.url)
-      this.xhr.send(formData)
+      xhr.open('POST', this.url)
+      if (!settled) xhr.send(formData)
     })
   }
 
-  abort(): void {
-    if (this.xhr) {
-      this.xhr.abort()
-      this.xhr = null
-    }
+  abort(): boolean {
+    const xhr = this.xhr
+    if (!xhr || xhr.readyState === XMLHttpRequest.DONE) return false
+
+    xhr.abort()
+    return true
   }
 
   get isUploading(): boolean {
@@ -114,12 +172,18 @@ export class MultiFileUpload {
     private files: File[],
     private onFileProgress?: (fileId: string, progress: number) => void,
     private onFileComplete?: (fileId: string, response: unknown) => void,
-    private onFileError?: (fileId: string, error: Error) => void
+    private onFileError?: (fileId: string, error: Error) => void,
+    private onFileCancel?: (fileId: string, error: UploadCancelledError) => void,
   ) {}
 
-  async uploadAll(): Promise<{ successful: unknown[]; failed: { fileId: string; error: Error }[] }> {
+  async uploadAll(): Promise<{
+    successful: unknown[]
+    failed: { fileId: string; error: Error }[]
+    cancelled: string[]
+  }> {
     const successful: unknown[] = []
     const failed: { fileId: string; error: Error }[] = []
+    const cancelled: string[] = []
 
     const uploadPromises = this.files.map(async (file, index) => {
       const fileId = `${file.name}-${index}`
@@ -134,6 +198,10 @@ export class MultiFileUpload {
           this.onFileError?.(fileId, error)
           failed.push({ fileId, error })
         },
+        onCancel: (error) => {
+          this.onFileCancel?.(fileId, error)
+          cancelled.push(fileId)
+        },
         signal: this.abortController.signal
       })
 
@@ -141,7 +209,7 @@ export class MultiFileUpload {
 
       try {
         return await upload.upload()
-      } catch (error) {
+      } catch {
         // Error already handled in onError callback
         return null
       } finally {
@@ -151,7 +219,7 @@ export class MultiFileUpload {
 
     await Promise.allSettled(uploadPromises)
     
-    return { successful, failed }
+    return { successful, failed, cancelled }
   }
 
   cancelUpload(fileId: string): void {
@@ -194,6 +262,7 @@ export function uploadMultipleFilesWithProgress(
     onFileProgress?: (fileId: string, progress: number) => void
     onFileComplete?: (fileId: string, response: unknown) => void
     onFileError?: (fileId: string, error: Error) => void
+    onFileCancel?: (fileId: string, error: UploadCancelledError) => void
   } = {}
 ): MultiFileUpload {
   return new MultiFileUpload(
@@ -201,6 +270,7 @@ export function uploadMultipleFilesWithProgress(
     files,
     callbacks.onFileProgress,
     callbacks.onFileComplete,
-    callbacks.onFileError
+    callbacks.onFileError,
+    callbacks.onFileCancel,
   )
 }

@@ -1,100 +1,78 @@
-"use client"
+import { redirect } from "next/navigation"
+import { BrandMark } from "@/components/ui/brand-mark"
+import { ButtonLink } from "@/components/ui/button-link"
+import { isPortfolioDemoEnabled, PORTFOLIO_DEMO_PATH } from "@/lib/portfolio-demo"
 
-import { useAuth } from "@/hooks/use-auth"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+const SAMPLE_LEAVES = [
+  { title: "CSS layout", status: "Learning" },
+  { title: "Semantic HTML", status: "Well learned" },
+  { title: "Accessible UI", status: "Refresh due" },
+]
 
-export default function Home() {
-  const { isAuthenticated, isLoading } = useAuth()
-  const router = useRouter()
+export default async function Home() {
+  if (isPortfolioDemoEnabled()) redirect(PORTFOLIO_DEMO_PATH)
 
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      router.push("/dashboard")
-    }
-  }, [isAuthenticated, isLoading, router])
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  const { auth } = await import("@/lib/auth")
+  const session = await auth()
+  if (session) redirect("/today")
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex flex-col items-center justify-center min-h-screen px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8 text-center">
-          {/* Logo/Brand */}
-          <div>
-            <div className="flex items-center justify-center space-x-3 mb-4">
-              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-primary-foreground font-bold text-xl">R</span>
-              </div>
-              <h1 className="text-4xl font-bold text-foreground">Rehearse</h1>
-            </div>
-            <p className="mt-2 text-lg text-muted-foreground">
-              Skill Retention Platform
+    <div className="min-h-screen overflow-x-clip bg-background text-foreground">
+      <header className="border-b border-border bg-card/95">
+        <nav
+          aria-label="Public navigation"
+          className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2 sm:px-6"
+        >
+          <BrandMark />
+          <ButtonLink href="/auth/login" variant="ghost" size="sm">
+            Sign in
+          </ButtonLink>
+        </nav>
+      </header>
+
+      <main className="mx-auto grid max-w-5xl gap-12 px-4 py-12 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.72fr)] lg:items-center lg:py-28">
+        <section>
+            <h1 className="max-w-2xl text-balance text-4xl font-semibold leading-tight tracking-[-0.04em] sm:text-6xl">
+              Build skills you can prove.
+            </h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
+              Add a topic and sources. Rehearse turns them into quizzes and visible mastery.
             </p>
+            <ButtonLink href="/auth/register" size="lg" className="mt-7 w-full sm:w-auto">
+              Start learning
+            </ButtonLink>
+        </section>
+
+        <aside aria-labelledby="tree-title" className="rounded-xl border border-border bg-card p-5 sm:p-6">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="tree-title" className="font-medium">Skill Tree</h2>
+            <span className="text-xs text-muted-foreground">Product direction</span>
           </div>
 
-          {/* Hero Section */}
-          <div className="space-y-4">
-            <h2 className="text-2xl font-semibold text-foreground">
-              Prevent Knowledge Decay
-            </h2>
-            <p className="text-muted-foreground">
-              Track your skills, practice with intelligent reminders, and maintain your knowledge before it fades.
-            </p>
+          <div className="mt-5 rounded-lg border border-border bg-background px-4 py-3 text-sm font-medium">
+            Accessible web interfaces
+          </div>
+          <div className="ml-5 border-l border-border pl-4 pt-4">
+            <ul className="space-y-3" aria-label="Example Skill Leaves">
+              {SAMPLE_LEAVES.map((leaf) => (
+                <li key={leaf.title} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate">{leaf.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{leaf.status}</span>
+                </li>
+              ))}
+            </ul>
           </div>
 
-          {/* CTA Buttons */}
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <Link href="/auth/register" className="w-full">
-                <Button className="w-full" size="lg">
-                  Get Started
-                </Button>
-              </Link>
-              
-              <Link href="/auth/login" className="w-full">
-                <Button variant="outline" className="w-full" size="lg">
-                  Sign In
-                </Button>
-              </Link>
-            </div>
-          </div>
+          <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+            One-leaf practice is live. Connected branches are next.
+          </p>
+        </aside>
 
-          {/* Features Preview */}
-          <div className="mt-12 space-y-6">
-            <h3 className="text-lg font-medium text-foreground">Key Features</h3>
-            <div className="grid gap-4 text-sm">
-              <div className="flex items-center space-x-3 p-3 bg-sage-light/30 rounded-lg">
-                <div className="w-3 h-3 bg-primary rounded-full" />
-                <span className="text-muted-foreground">Visual decay tracking</span>
-              </div>
-              <div className="flex items-center space-x-3 p-3 bg-terracotta-light/30 rounded-lg">
-                <div className="w-3 h-3 bg-accent rounded-full" />
-                <span className="text-muted-foreground">Intelligent practice reminders</span>
-              </div>
-              <div className="flex items-center space-x-3 p-3 bg-amber-light/30 rounded-lg">
-                <div className="w-3 h-3 bg-warning rounded-full" />
-                <span className="text-muted-foreground">AI-generated practice questions</span>
-              </div>
-              <div className="flex items-center space-x-3 p-3 bg-sage-light/30 rounded-lg">
-                <div className="w-3 h-3 bg-success rounded-full" />
-                <span className="text-muted-foreground">Skill folder organization</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+        <p className="text-xs leading-5 text-muted-foreground lg:col-span-2">
+          <strong className="font-medium text-foreground">Use test data only.</strong>{" "}
+          This is an early prototype.
+        </p>
+      </main>
     </div>
   )
 }

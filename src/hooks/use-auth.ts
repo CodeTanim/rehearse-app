@@ -3,13 +3,14 @@
 import { useSession, signIn, signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { sanitizeReturnTo } from "@/lib/auth/return-to"
 
 export function useAuth() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, returnTo?: string) => {
     setIsLoading(true)
     try {
       const result = await signIn("credentials", {
@@ -23,7 +24,8 @@ export function useAuth() {
         return { error: "Invalid email or password" }
       }
 
-      router.push("/dashboard")
+      router.replace(sanitizeReturnTo(returnTo))
+      router.refresh()
       return { success: true }
     } catch {
       setIsLoading(false)
@@ -34,7 +36,8 @@ export function useAuth() {
   const logout = async () => {
     setIsLoading(true)
     await signOut({ redirect: false })
-    router.push("/")
+    router.replace("/")
+    router.refresh()
     setIsLoading(false)
   }
 

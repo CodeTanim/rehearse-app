@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AUTH_SECRET: ci-only-secret-with-at-least-32-bytes
+      AUTH_URL: http://localhost:3000
+      DATABASE_URL: file:./ci.db
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use project Node.js version
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Apply current SQLite migrations
+        run: npm run db:migrate
+
+      - name: Lint without warnings
+        run: npm run lint:strict
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Install Chromium for browser smoke tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke tests
+        run: npm run test:e2e
+
+      - name: Build production application
+        run: npm run build

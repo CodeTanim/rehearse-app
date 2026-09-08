@@ -1,310 +1,162 @@
-# 🧠 Rehearse
+# Rehearse
 
-> _Intelligent skill retention platform that prevents knowledge decay through AI-powered practice and visual progress tracking_
+Rehearse is a portfolio prototype for evidence-backed learning. A learner picks any topic, adds trusted sources, practices generated quizzes and recalls, repairs missed ideas, and sees when the evidence supports calling that Skill Leaf **Well learned for its current scope**.
 
-<div align="center">
+The complete source-first loop now works in the local prototype. Skill Leaves begin as independent nodes; learners may connect them into their own trees without manually classifying every topic.
 
-![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)
-![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=for-the-badge&logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.0-38B2AC?style=for-the-badge&logo=tailwind-css)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=for-the-badge&logo=postgresql&logoColor=white)
+[Try the live portfolio demo](https://rehearse-app-smoky.vercel.app)
 
-[Live Demo](#) • [Documentation](#) • [Report Bug](#) • [Request Feature](#)
+The hosted Vercel build is a stateless walkthrough with synthetic data. It demonstrates recall, self-grading, an explained **Well learned** state, review scheduling, and the Skill Tree without exposing accounts, uploads, APIs, or persistent storage.
 
-</div>
+## Safety status
 
----
+Use synthetic data only in the local full-app prototype.
 
-## 🎯 Overview
+The full authenticated prototype still relies on local SQLite and filesystem storage, and its Phase 0 privacy, recovery, and deployment hardening is in progress. Do not upload real, private, regulated, or otherwise sensitive learning material. Do not deploy the authenticated mode as a production service until the planned managed persistence and security work lands. The public demo intentionally disables those surfaces.
 
-**Rehearse** is a comprehensive skill retention platform designed to combat the inevitable decay of learned knowledge. Whether you're a medical student juggling thousands of concepts, a software engineer maintaining expertise across multiple technologies, or any professional seeking to retain complex information over time, Rehearse provides intelligent practice reminders and visual decay tracking to keep your skills sharp.
+See [plan.md](./plan.md) for the reviewed product, security, accessibility, and engineering overhaul specification.
 
-### 🚀 The Problem We Solve
+## Product status
 
-Knowledge decay is universal - studies show we forget up to 50% of new information within an hour and 90% within a week without reinforcement. Rehearse addresses this by:
+| Status | Capability |
+|---|---|
+| Live on Vercel | Stateless synthetic recall-to-Skill-Tree walkthrough |
+| Implemented in the local prototype | Account registration and sign-in |
+| Implemented in the local prototype | Topic-only creation of an independent Skill Leaf with no category decision |
+| Implemented in the local prototype | Public website, PDF, pasted-text, and authored-note Sources with immutable versions |
+| Implemented in the local prototype | Source-grounded mixed quiz packs with citations and withheld new-angle questions |
+| Implemented in the local prototype | Cited **Strengthen this** repair after a miss, with a scaffold that cannot raise mastery |
+| Implemented in the local prototype | Durable recall drafts, objective MCQ grading, short-response self-rating, attempts, and scheduling |
+| Implemented in the local prototype | Account-owned initial-quiz autosave/resume, save status, and final-submission recovery |
+| Implemented in the local prototype | Skill overviews and all-skill Progress independent of today's recommendation |
+| Implemented in the local prototype | Evidence-derived Unassessed, Learning, Demonstrated, and Well learned policy |
+| Implemented in the local prototype | User-wide Constellation Garden with independent leaves and learner-created Related/Prerequisite lines |
+| Implemented in the local prototype | Desktop pan/zoom/reset, scrollable mobile skill list, and selected-skill connection context |
+| Implemented in the local prototype | Soft white-and-green botanical UI with Today, Tree, and Progress navigation |
+| Implemented foundation | Strict Vercel AI SDK boundary, citation validation, competency coverage, and hidden transfer probes |
+| Legacy local capability | Skill-folder creation and organization |
+| Legacy local capability | Basic note and local-file workflows |
+| In progress | Phase 0 security, privacy, build, and accessibility baseline |
+| Planned next | Managed production database/object storage and provider-backed generation evaluation |
+| Planned | Search, filters, fit-all/bounded canvas navigation, pointer-drawn connections, and connection editing |
+| Future opt-in | Generate related Skill Trees as previewed, reversible groupings over existing leaves |
+| Deferred | Collaboration, public maps, advanced graph overlays, native mobile, offline-first support, and gamification |
 
-- **Tracking skill degradation** over time using advanced algorithms
-- **Delivering targeted practice** before significant decay occurs
-- **Visualizing progress** to maintain motivation and awareness
-- **Organizing learning materials** in intuitive, searchable folders
+The local generator is deliberately deterministic so the full flow can be tested without sending source text to an external model. Provider-backed AI generation, production persistence, reminders, a public user-data product, PWA support, and formal WCAG conformance are not yet shipped.
 
----
+## Current technology
 
-## ✨ Features
+- Next.js App Router, React, and TypeScript
+- Tailwind CSS 4 with a small source-owned botanical component system
+- Radix primitives for accessible dialogs, confirmations, and tabs
+- Vercel AI SDK with an explicit AI Gateway model boundary for structured learning packs
+- Auth.js credentials authentication
+- Prisma with an isolated local SQLite database
+- Local filesystem uploads for development only
 
-### 🔐 **User Authentication & Security**
+The target architecture in `plan.md` replaces the local database and uploads with managed PostgreSQL, private object storage, durable jobs, isolated ingestion workers, and evidence-derived projections.
 
-- Secure user registration and login system
-- Password reset and account management
-- Protected routes and session management
-- JWT-based authentication with NextAuth.js
+The soft white-and-green Constellation Garden system is documented in [docs/design-system.md](./docs/design-system.md). Rehearse keeps the existing accessible primitives while giving the product an organic leaf-and-constellation identity.
 
-### 📁 **Skill Folder Management**
+## Local development
 
-- Create color-coded skill folders for different topics
-- Organize learning materials by subject or project
-- Folder statistics and material counts
-- Search and filter capabilities
+Requirements:
 
-### 📄 **File & Note Management**
+- Node.js 24
+- npm 11
 
-- **Multi-format file upload**: PDF, images, text files, and more
-- **Advanced viewers**:
-  - PDF.js integration with zoom, pan, and search
-  - Image viewer with zoom and pan controls
-  - Syntax-highlighted text/code viewer
-- **Rich text editor**: Create and edit notes with formatting
-- **File organization**: Drag-and-drop interface for material management
-- **Thumbnail generation**: Quick previews for all file types
-
-### 🧠 **AI-Powered Question Generation** _(Coming Soon)_
-
-- Generate practice questions from uploaded materials using OpenAI
-- Custom Q&A pair creation for personalized practice
-- Intelligent question difficulty adjustment
-- Context-aware explanations and hints
-
-### 📊 **Skill Decay Tracking** _(Coming Soon)_
-
-- **Visual decay dashboard**: See skill proficiency over time
-- **Decay algorithm**: Python microservice calculating knowledge deterioration
-- **Practice scheduling**: Smart reminders before skills decay significantly
-- **Progress analytics**: Track improvement and retention rates
-
-### 🎯 **Practice Sessions** _(Coming Soon)_
-
-- Interactive practice interface with immediate feedback
-- Multiple question types (multiple choice, short answer, essay)
-- Performance tracking and analytics
-- Spaced repetition optimization
-
-### 📱 **Modern User Experience**
-
-- Responsive design for desktop, tablet, and mobile
-- Dark/light mode support
-- Accessibility-first design (WCAG 2.1 compliant)
-- Progressive Web App (PWA) capabilities
-- Real-time updates and auto-save
-
----
-
-## 🛠 Tech Stack
-
-### Frontend
-
-- **Framework**: Next.js 15 with App Router
-- **UI Library**: React 19
-- **Language**: TypeScript (strict mode)
-- **Styling**: Tailwind CSS v4
-- **Build Tool**: Turbopack for development
-
-### Backend & Database
-
-- **API**: Next.js API routes (full-stack)
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js v5
-- **File Storage**: Local + Cloud storage abstraction
-- **Password Security**: bcryptjs hashing
-
-### AI & Machine Learning _(In Development)_
-
-- **AI Provider**: OpenAI API
-- **ML Backend**: Python microservice
-- **ML Framework**: scikit-learn
-- **Use Cases**: Question generation, content analysis, decay prediction
-
-### Infrastructure
-
-- **Hosting**: Vercel
-- **Database**: Supabase (managed PostgreSQL)
-- **CI/CD**: GitHub Actions
-- **Monitoring**: Built-in analytics and error tracking
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- PostgreSQL database
-- npm or yarn package manager
-
-### Installation
-
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/yourusername/rehearse-app.git
-   cd rehearse-app
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables**
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-   Configure your `.env.local` with:
-
-   ```env
-   DATABASE_URL="postgresql://..."
-   NEXTAUTH_URL="http://localhost:3000"
-   NEXTAUTH_SECRET="your-secret-key"
-   OPENAI_API_KEY="your-openai-key" # Optional, for AI features
-   ```
-
-4. **Set up the database**
-
-   ```bash
-   npx prisma migrate dev
-   npx prisma generate
-   ```
-
-5. **Run the development server**
-
-   ```bash
-   npm run dev
-   ```
-
-6. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-### Development Commands
+Install the locked dependencies:
 
 ```bash
-npm run dev          # Start development server with Turbopack
-npm run build        # Build production application
-npm start           # Start production server
-npm run lint        # Run ESLint for code quality
-npm run type-check  # Run TypeScript type checking
+npm ci
 ```
 
----
+Start an isolated local environment:
 
-## 📋 Roadmap
-
-### ✅ Phase 1: MVP Foundation (Completed)
-
-- [x] User authentication system
-- [x] Skill folder management
-- [x] File & note upload system
-- [x] Basic dashboard interface
-- [x] File viewing infrastructure
-- [x] Responsive design
-
-### 🚧 Phase 2: AI & Decay Tracking (In Progress)
-
-- [ ] Skill decay algorithm implementation
-- [ ] OpenAI integration for question generation
-- [ ] Practice session interface
-- [ ] Decay visualization dashboard
-- [ ] Practice scheduling system
-- [ ] Performance analytics
-
-### 🔮 Phase 3: Enhanced Features (Planned)
-
-- [ ] Advanced practice modes (flashcards, timed tests)
-- [ ] Collaborative study groups
-- [ ] Mobile app (React Native)
-- [ ] Advanced analytics and insights
-- [ ] Integration with external platforms
-- [ ] Offline mode support
-
----
-
-## 🏗 Project Structure
-
-```
-rehearse-app/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/               # API routes
-│   │   ├── auth/              # Authentication pages
-│   │   ├── dashboard/         # Main dashboard
-│   │   └── practice/          # Practice sessions (WIP)
-│   ├── components/            # React components
-│   │   ├── ui/               # Base UI components
-│   │   ├── skill-folders/    # Folder management
-│   │   ├── files/            # File handling
-│   │   └── practice/         # Practice interface (WIP)
-│   ├── lib/                   # Utilities and configurations
-│   │   ├── auth.ts           # Authentication config
-│   │   ├── db.ts             # Database connection
-│   │   └── openai.ts         # AI integration (WIP)
-│   └── hooks/                 # Custom React hooks
-├── prisma/                    # Database schema and migrations
-├── public/                    # Static assets
-└── .agent-os/                # Development specifications
+```bash
+npm run dev:local
 ```
 
----
+This command generates a local auth secret, prepares `prisma/dev.local.db`, applies migrations, idempotently seeds a synthetic Skill Garden plus legacy library fixtures, prints the demo credentials, and starts the development server. The generated database, secret, and uploads are local runtime artifacts and must remain untracked.
 
-## 🤝 Contributing
+Authentication throttles, bounded upload admission, upload-quota arbitration, and filesystem mutation locking are intentionally process-local safeguards for this single-process development build. They are not substitutes for the durable, shared controls specified for production in `plan.md`.
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+To rerun only the idempotent local seed:
 
-### Development Workflow
+```bash
+npm run db:local:seed
+```
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`npm test`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+To remove only the isolated local database, recreate it, and seed fresh demo data:
 
----
+```bash
+npm run db:local:reset
+```
 
-## 📊 Target Audience
+### Demo mastery states
 
-### 🎓 **Students**
+The synthetic demo account can be moved through the real scheduling and
+mastery policies without waiting several weeks between reviews. Run one
+command, then refresh `/today` while signed in as `demo@rehearse.local`:
 
-- Medical students managing complex coursework
-- Computer science students juggling multiple programming languages
-- Graduate students maintaining research knowledge across semesters
+```bash
+npm run demo:state -- well-learned
+npm run demo:state -- refresh-due
+npm run demo:state -- lapse
+```
 
-### 👨‍💻 **Tech Professionals**
+Each command replaces only the demo goal's practice history. It creates real
+completed sessions, attempts, evidence, and schedule transitions, recomputes
+readiness with `mastery-v1`, and stops if the result does not match the named
+state. `refresh-due` retains Well learned mastery while making its review
+overdue; `lapse` records an Again rating, resets the interval to ten minutes,
+and recomputes the leaf as Learning. Use `npm run db:local:reset` to return to
+the initial Unassessed demo.
 
-- Software engineers maintaining expertise across frameworks
-- DevOps engineers tracking infrastructure knowledge
-- Technical leads ensuring team knowledge retention
+Local setup also runs a non-destructive migration preflight. If a legacy database contains duplicate file names within one folder, setup stops with a repair message instead of letting the unique-index migration fail opaquely or discarding either record.
 
-### 🏥 **Medical Professionals**
+Use `npm run db:local:setup` when the database should be prepared without seeding or starting the development server.
 
-- Doctors maintaining continuing education requirements
-- Nurses staying current with protocol updates
-- Medical researchers tracking study methodologies
+For a separately managed environment, copy `.env.example`, provide the documented values, and use the reviewed database workflow for that environment. The current Prisma schema remains SQLite-backed until the planned PostgreSQL migration lands.
 
----
+## Verification
 
-## 📈 Performance & Scalability
+```bash
+npm run lint:strict
+npm run typecheck
+npm run test
+npm run build
+```
 
-- **Fast Development**: Turbopack for lightning-fast builds
-- **Optimized Images**: Next.js Image optimization
-- **Database Performance**: Prisma with connection pooling
-- **Caching Strategy**: Redis integration ready
-- **CDN Ready**: Vercel Edge Network optimization
-- **Progressive Loading**: Lazy loading for large datasets
+Run the complete non-browser gate with:
 
----
+```bash
+npm run check
+```
 
-## 🔒 Security & Privacy
+End-to-end browser coverage is available through:
 
-- **Data Encryption**: All sensitive data encrypted at rest
-- **Secure Authentication**: Industry-standard JWT implementation
-- **Input Validation**: Comprehensive server-side validation
-- **Rate Limiting**: API protection against abuse
-- **Privacy First**: No unnecessary data collection
-- **GDPR Compliant**: Data export and deletion tools
+```bash
+npm run test:e2e
+```
 
----
+The browser suite starts Rehearse on dedicated port 3107 and will not silently
+reuse an unrelated local server.
 
+## Product principles
 
+- Start with the learner's topic, then ask for sources.
+- Treat a skill leaf as something the learner can demonstrate.
+- Keep source evidence separate from mastery evidence.
+- Never increase mastery because content was uploaded, read, or generated.
+- Require explicit consent before selected source snapshots enter generation.
+- Turn every valid miss into one cited, concrete repair action.
+- Let only later unassisted recall—not guided repair—resolve a learning gap.
+- Make learning-state claims explainable, scoped, and reversible.
+- Keep manual authoring usable without AI.
+- Treat private learning material as private by default.
+- Make the accessible outline a first-class counterpart to the visual tree.
+
+## Contributing
+
+This repository is in a safety and architecture transition. Before proposing feature work, read `plan.md` and keep public documentation explicit about what is Implemented, Planned, and Deferred.
