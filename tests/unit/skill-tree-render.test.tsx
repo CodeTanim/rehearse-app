@@ -2,7 +2,7 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 vi.mock("@/app/actions/skill-position", () => ({ saveSkillPositionAction: vi.fn() }))
-vi.mock("@/app/actions/skill-relationships", () => ({ connectSkillRelationshipAction: vi.fn() }))
+vi.mock("@/app/actions/skill-relationships", () => ({ connectSkillRelationshipAction: vi.fn(), manageSkillRelationshipAction: vi.fn() }))
 import { SkillTree } from "@/components/learning/skill-tree"
 import type { SkillTreeLeaf } from "@/lib/learning/skill-tree-query"
 
@@ -29,6 +29,16 @@ function leaf(overrides: Partial<SkillTreeLeaf> = {}): SkillTreeLeaf {
 }
 
 describe("SkillTree", () => {
+  it.each(["RELATED", "PREREQUISITE"] as const)("exposes %s disconnect controls without opening Manage connections", (kind) => {
+    const html = renderToStaticMarkup(createElement(SkillTree, {
+      leaves: [leaf(), leaf({ skillNodeId: "node-b", goalSkillId: "skill-b", title: "Arrays" })],
+      goalTitle: "Computer science",
+      relationships: [{ id: "edge", sourceSkillNodeId: "node-a", sourceTitle: "Hashmaps", targetSkillNodeId: "node-b", targetTitle: "Arrays", kind, status: "CONFIRMED", origin: "USER", confidence: null, rationale: null }],
+    }))
+    expect(html).toContain('aria-label="Hashmaps connections"')
+    expect(html).toContain(`aria-label="Disconnect: Hashmaps is ${kind === "RELATED" ? "related to" : "a prerequisite for"} Arrays"`)
+    expect(html).toContain("select connection")
+  })
   it("renders independent leaves as an accessible constellation", () => {
     const html = renderToStaticMarkup(
       createElement(SkillTree, {

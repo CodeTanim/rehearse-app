@@ -9,6 +9,16 @@
 
 ## 1. Executive decision
 
+### Connection usability fixes — 2026-09-08
+
+- [x] Select a line directly (wide pointer target or Enter/Space) to open Disconnect; selected-skill connections also provide a discoverable entry point.
+- [x] Mobile offers Disconnect beside the selected skill's connections. Removal exposes a visible Undo disconnect notification without opening Manage connections.
+- [x] Exit connecting and Cancel remain usable during a submitted save. Escape exits even when focus is outside the map; blank canvas presses also exit.
+- [x] Exit releases a captured connection handle, clears the preview, and prevents a late pointer click from reopening the mode. A late save response cannot override a selection made after exit.
+- [x] Submitted saves are not falsely described as cancelled: their eventual success/error is reported, and waiting is bounded to 12 seconds with explicit uncertain-save recovery wording.
+- [x] Desktop line selection/removal/undo/reload and 320px mobile removal/undo passed live; external-focus Escape, explicit exit, and blank-canvas exit passed live.
+- [ ] Run the expanded automated browser suite, including held-network save completion and Escape during captured pointer drag; those race scenarios have regression scripts but were not fault-injected live.
+
 ### Skill workspace checkpoint — 2026-09-08
 
 - [x] Desktop drag and Alt + arrow movement save account-owned coordinates with version checks. Conflicts/unavailable skills are not overwritten; failed saves revert the preview and offer recovery.

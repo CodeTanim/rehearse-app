@@ -27,6 +27,7 @@ import { ButtonLink } from "@/components/ui/button-link"
 import type { SkillTreeRelationship } from "@/lib/learning/skill-tree-query"
 import { connectSkillRelationshipAction } from "@/app/actions/skill-relationships"
 import { useSkillPlacement } from "@/hooks/use-skill-placement"
+import { connectionDescription, useConnectionRemoval } from "@/hooks/use-connection-removal"
 import { boundedPosition, defaultNodePosition, fitCanvas, MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM } from "@/lib/learning/canvas-geometry"
 
 export type SkillConstellationLeaf = {
@@ -171,9 +172,9 @@ function LeafGlyph() {
 }
 
 function isCanvasControlElement(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false
+  if (!(target instanceof Element)) return false
   return Boolean(
-    target.closest("button, a, input, select, textarea, .constellation-node, .constellation-inspector"),
+    target.closest("button, a, input, select, textarea, [role='button'], .constellation-node, .constellation-inspector"),
   )
 }
 
@@ -196,6 +197,12 @@ export function SkillConstellation({
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const placement = useSkillPlacement(leaves)
+  const removal = useConnectionRemoval(leaves)
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null)
+  const disconnectRef = useRef<HTMLButtonElement>(null)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
+  const connectionEpoch = useRef(0)
+  const savingConnection = useRef(false)
   const [query, setQuery] = useState("")
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   const [connectionKind, setConnectionKind] = useState<"RELATED" | "PREREQUISITE">("RELATED")
@@ -204,7 +211,7 @@ export function SkillConstellation({
   const [connectionError, setConnectionError] = useState("")
   const [pointer, setPointer] = useState<Point | null>(null)
   const dragRef = useRef<{ id: string; pointerId: number; start: Point; origin: Point; next: Point; moved: boolean } | null>(null)
-  const connectionDragRef = useRef<{ sourceId: string; pointerId: number } | null>(null)
+  const connectionDragRef = useRef<{ sourceId: string; pointerId: number; element: HTMLButtonElement } | null>(null)
   const suppressClick = useRef(false)
   const searchResults = query.trim() ? leaves.filter((leaf) => leaf.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) : []
   const panRef = useRef<
@@ -236,6 +243,56 @@ export function SkillConstellation({
           relationship.targetSkillNodeId === selectedLeaf.skillNodeId,
       )
     : []
+  const selectedEdge = visibleRelationships.find((edge) => edge.id === selectedEdgeId)
+
+  const exitConnectionMode = useCallback(() => {
+    connectionEpoch.current += 1
+    const drag = connectionDragRef.current
+    connectionDragRef.current = null
+    if (drag?.element.hasPointerCapture(drag.pointerId)) drag.element.releasePointerCapture(drag.pointerId)
+    suppressClick.current = false
+    setConnectFrom(null)
+    setPointer(null)
+    setConnectionError("")
+    setConnectionMessage(savingConnection.current ? "Connection is still saving. You can keep exploring." : "")
+  }, [])
+
+  useEffect(() => {
+    if (!connectFrom && !selectedEdgeId) return
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      exitConnectionMode()
+      setSelectedEdgeId(null)
+      connectButtonRef.current?.focus({ preventScroll: true })
+    }
+    window.addEventListener("keydown", escape, true)
+    return () => window.removeEventListener("keydown", escape, true)
+  }, [connectFrom, selectedEdgeId, exitConnectionMode])
+
+  function startConnection(sourceId: string) {
+    if (savingConnection.current) return
+    connectionEpoch.current += 1
+    setSelectedEdgeId(null)
+    setConnectFrom(sourceId)
+    setConnectionError("")
+    setConnectionMessage("")
+    setPointer(null)
+  }
+
+  function selectEdge(edge: SkillTreeRelationship) {
+    exitConnectionMode()
+    setSelectedEdgeId(edge.id)
+    requestAnimationFrame(() => disconnectRef.current?.focus({ preventScroll: true }))
+  }
+
+  async function disconnect(edge: SkillTreeRelationship) {
+    exitConnectionMode()
+    if (await removal.remove(edge)) {
+      setSelectedEdgeId(null)
+      nodeRefs.current.get(selectedId)?.focus({ preventScroll: true })
+    }
+  }
 
   const stageHeight = 560
 
@@ -342,34 +399,46 @@ export function SkillConstellation({
 
   async function selectNode(leaf: SkillConstellationLeaf, explicitSource?: string) {
     if (suppressClick.current) { suppressClick.current = false; return }
-    if (connecting) return
     const sourceId = explicitSource ?? connectFrom
-    if (!sourceId) { setSelectedId(leaf.skillNodeId); return }
+    if (!sourceId) { setSelectedEdgeId(null); setSelectedId(leaf.skillNodeId); return }
+    if (savingConnection.current) return
     if (sourceId === leaf.skillNodeId) { setConnectionMessage("Choose a different skill to connect."); return }
     const source = leaves.find((item) => item.skillNodeId === sourceId)
     if (!source) return
+    const epoch = connectionEpoch.current
+    savingConnection.current = true
     setConnecting(true)
     setConnectionError("")
+    let timeout: ReturnType<typeof setTimeout> | undefined
     try {
       const form = new FormData()
       form.set("sourceGoalSkillId", source.goalSkillId)
       form.set("targetGoalSkillId", leaf.goalSkillId)
       form.set("kind", connectionKind)
-      const result = await connectSkillRelationshipAction({}, form)
-      if (result.error) setConnectionError(result.error)
+      const result = await Promise.race([
+        connectSkillRelationshipAction({}, form),
+        new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("Saving took too long. Reload the map to check whether the connection was saved.")), 12_000) }),
+      ])
+      if (result.error) { setConnectionError(result.error); setConnectionMessage("") }
       else {
         setConnectionMessage(`${source.title} connected to ${leaf.title}.`)
-        setConnectFrom(null)
-        setPointer(null)
-        setSelectedId(leaf.skillNodeId)
+        if (connectionEpoch.current === epoch) {
+          setConnectFrom(null)
+          setPointer(null)
+          setSelectedId(leaf.skillNodeId)
+        }
       }
-    } catch { setConnectionError("The skills could not be connected. Try again.") }
-    finally { setConnecting(false) }
+    } catch (cause) {
+      setConnectionError(cause instanceof Error && cause.message.startsWith("Saving took too long") ? cause.message : "The skills could not be connected. Try again.")
+      setConnectionMessage("")
+    }
+    finally { clearTimeout(timeout); savingConnection.current = false; setConnecting(false) }
   }
 
   function startNodeDrag(event: PointerEvent<HTMLButtonElement>, leaf: SkillConstellationLeaf, index: number) {
     if (event.button !== 0 || connectFrom || placement.saving || window.matchMedia("(max-width: 767px)").matches) return
     event.stopPropagation()
+    setSelectedEdgeId(null)
     setConnectionMessage("")
     suppressClick.current = false
     const origin = placement.positions[leaf.skillNodeId] ?? defaultNodePosition(index)
@@ -404,10 +473,8 @@ export function SkillConstellation({
     event.stopPropagation()
     suppressClick.current = false
     setSelectedId(leaf.skillNodeId)
-    setConnectFrom(leaf.skillNodeId)
-    setConnectionError("")
-    setConnectionMessage("")
-    connectionDragRef.current = { sourceId: leaf.skillNodeId, pointerId: event.pointerId }
+    startConnection(leaf.skillNodeId)
+    connectionDragRef.current = { sourceId: leaf.skillNodeId, pointerId: event.pointerId, element: event.currentTarget }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -416,7 +483,7 @@ export function SkillConstellation({
     if (!drag || event.pointerId !== drag.pointerId) return
     connectionDragRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
-    if (cancelled) { setConnectFrom(null); setPointer(null); return }
+    if (cancelled) { exitConnectionMode(); return }
     const hit = document.elementFromPoint(event.clientX, event.clientY)?.closest(".constellation-node-position")
     const targetId = hit?.querySelector<HTMLButtonElement>("[data-skill-node-id]")?.dataset.skillNodeId
     const target = leaves.find((leaf) => leaf.skillNodeId === targetId)
@@ -491,8 +558,11 @@ export function SkillConstellation({
 
   const beginPan = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      if (window.matchMedia("(max-width: 767px)").matches) return
       if (event.button !== 0 || leaves.length === 0 || isCanvasControlElement(event.target)) return
+      // A blank-space press exits connection mode before starting an ordinary pan.
+      if (connectFrom) exitConnectionMode()
+      setSelectedEdgeId(null)
+      if (window.matchMedia("(max-width: 767px)").matches) return
       const stage = stageRef.current
       if (!stage) return
 
@@ -506,7 +576,7 @@ export function SkillConstellation({
       }
       setIsPanning(true)
     },
-    [leaves.length, offset.x, offset.y],
+    [leaves.length, offset.x, offset.y, connectFrom, exitConnectionMode],
   )
 
   const updatePan = useCallback(
@@ -551,9 +621,7 @@ export function SkillConstellation({
   }, [isPanning])
 
   return (
-    <div className="constellation-frame" data-testid="skill-constellation" onKeyDown={(event) => {
-      if (event.key === "Escape" && !connecting) { connectionDragRef.current = null; setConnectFrom(null); setPointer(null); setConnectionError(""); setQuery("") }
-    }}>
+    <div className="constellation-frame" data-testid="skill-constellation">
       <div className="constellation-frame__bar">
         <div className="constellation-search">
           <label htmlFor={`${markerId}-search`} className="sr-only">Find a skill</label>
@@ -617,18 +685,17 @@ export function SkillConstellation({
             type="button"
             variant="outline"
             size="sm"
-            disabled={leaves.length < 2 || connecting}
+            ref={connectButtonRef}
+            disabled={leaves.length < 2 || (connecting && !connectFrom)}
             aria-pressed={Boolean(connectFrom)}
             onClick={() => {
               suppressClick.current = false
-              setConnectFrom(connectFrom ? null : selectedLeaf?.skillNodeId ?? null)
-              setConnectionError("")
-              setConnectionMessage("")
-              setPointer(null)
+              if (connectFrom) exitConnectionMode()
+              else if (selectedLeaf) startConnection(selectedLeaf.skillNodeId)
             }}
           >
             <CableIcon aria-hidden="true" className="size-4" />
-            Connect
+            {connectFrom ? "Exit connecting" : "Connect"}
           </Button>
         </div>
       </div>
@@ -649,11 +716,19 @@ export function SkillConstellation({
         <select aria-label="Map connection type" className="paper-input min-h-11 px-3 text-sm" value={connectionKind} disabled={connecting} onChange={(event) => setConnectionKind(event.target.value as "RELATED" | "PREREQUISITE")}>
           <option value="RELATED">Related</option><option value="PREREQUISITE">Prerequisite for</option>
         </select>
-        <Button variant="ghost" size="sm" disabled={connecting} onClick={() => { setConnectFrom(null); setPointer(null) }}>Cancel</Button>
-        <Button variant="ghost" size="sm" disabled={connecting} onClick={() => { setConnectFrom(null); openConnections() }}>Use form</Button>
+        <Button variant="outline" size="sm" onClick={exitConnectionMode}>Cancel</Button>
+        <Button variant="ghost" size="sm" disabled={connecting} onClick={() => { exitConnectionMode(); openConnections() }}>Use form</Button>
       </div> : null}
       {connectionError || placement.error ? <p role="alert" className="px-5 py-2 text-sm text-destructive">{connectionError || placement.error} {placement.error ? <button type="button" onClick={() => window.location.reload()} className="underline">Reload map</button> : null}</p> : null}
-      <p role="status" className="px-5 py-2 text-xs text-muted-foreground">{placement.saving ? "Saving position…" : connectionMessage || placement.message || "Select a skill to explore."}</p>
+      <p role="status" className="px-5 py-2 text-xs text-muted-foreground">{placement.saving ? "Saving position…" : connectionMessage || placement.message || "Select a skill or connection to explore."}</p>
+      {removal.removed || removal.error ? <div className="constellation-connection-feedback" aria-label="Connection update">
+        {removal.error ? <p role="alert" className="text-sm text-destructive">{removal.error}</p> : null}
+        {removal.removed ? <>
+          <p role="status" className="text-sm">Disconnected {removal.removed.sourceTitle} and {removal.removed.targetTitle}.</p>
+          <Button variant="outline" size="sm" disabled={removal.pending} onClick={() => { void removal.undo() }}>Undo disconnect</Button>
+        </> : null}
+        <Button variant="ghost" size="sm" disabled={removal.pending} onClick={removal.dismiss}>Dismiss</Button>
+      </div> : null}
 
       <div className="constellation-layout">
         <div
@@ -679,7 +754,7 @@ export function SkillConstellation({
           >
             {stageSize.width > 0 && stageSize.height > 0 ? (
               <svg
-                aria-hidden="true"
+                aria-label="Map connections"
                 className="constellation-lines"
                 viewBox={`0 0 ${stageSize.width} ${stageSize.height}`}
                 preserveAspectRatio="none"
@@ -697,7 +772,7 @@ export function SkillConstellation({
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--garden-blue)" />
                   </marker>
                 </defs>
-                {connectFrom && pointer && centers[connectFrom] ? <path className="constellation-line" strokeDasharray="5 6" d={curvedPath(centers[connectFrom], pointer)} /> : null}
+                {connectFrom && pointer && centers[connectFrom] ? <path aria-hidden="true" className="constellation-line" strokeDasharray="5 6" d={curvedPath(centers[connectFrom], pointer)} /> : null}
                 {visibleRelationships.map((relationship) => {
                   const source = centers[relationship.sourceSkillNodeId]
                   const target = centers[relationship.targetSkillNodeId]
@@ -707,16 +782,32 @@ export function SkillConstellation({
                     relationship.targetSkillNodeId === selectedLeaf?.skillNodeId
 
                   return (
+                    <g key={relationship.id}>
                     <path
-                      key={relationship.id}
+                      aria-hidden="true"
                       className="constellation-line"
-                      data-active={active}
+                      data-active={active || selectedEdgeId === relationship.id}
+                      data-selected={selectedEdgeId === relationship.id}
                       data-kind={relationship.kind}
                       d={relationshipPath(source, target)}
                       markerEnd={
                         relationship.kind === "PREREQUISITE" ? `url(#${markerId})` : undefined
                       }
                     />
+                    <path
+                      className="constellation-line-target"
+                      d={relationshipPath(source, target)}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Connection: ${connectionDescription(relationship)}`}
+                      aria-pressed={selectedEdgeId === relationship.id}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => { event.stopPropagation(); selectEdge(relationship) }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectEdge(relationship) }
+                      }}
+                    />
+                    </g>
                   )
                 })}
               </svg>
@@ -771,7 +862,11 @@ export function SkillConstellation({
                       onPointerDown={(event) => beginConnectionDrag(event, leaf)}
                       onPointerUp={(event) => endConnectionDrag(event)}
                       onPointerCancel={(event) => endConnectionDrag(event, true)}
-                      onClick={() => { if (!connecting) { suppressClick.current = false; setConnectFrom(leaf.skillNodeId); setConnectionError("") } }}
+                      onClick={(event) => {
+                        // Pointer-down already starts the gesture. A late click after
+                        // Escape/pointer cancellation must never reopen it.
+                        if (event.detail === 0 && !connecting) { suppressClick.current = false; startConnection(leaf.skillNodeId) }
+                      }}
                     ><CableIcon className="size-4" aria-hidden="true" /></button> : null}
                     {selected ? (
                       <div
@@ -788,6 +883,12 @@ export function SkillConstellation({
                         <div className="mt-3">
                           <SkillPrimaryAction leaf={leaf} />
                         </div>
+                        {selectedRelationships.length ? <ul aria-label={`${leaf.title} connections`} className="mt-3 space-y-2">
+                          {selectedRelationships.map((edge) => <li key={edge.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                            <span className="min-w-0 break-words">{edge.sourceSkillNodeId === leaf.skillNodeId ? edge.targetTitle : edge.sourceTitle}</span>
+                            <Button size="sm" variant="outline" disabled={removal.pending || connecting} aria-label={`Disconnect: ${connectionDescription(edge)}`} onClick={() => { void disconnect(edge) }}>Disconnect</Button>
+                          </li>)}
+                        </ul> : null}
                       </div>
                     ) : null}
                   </li>
@@ -795,6 +896,13 @@ export function SkillConstellation({
               })}
             </ul>
           </div>
+          {selectedEdge ? <section className="constellation-edge-tools" aria-label="Selected connection">
+            <p className="text-sm font-medium">{connectionDescription(selectedEdge)}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button ref={disconnectRef} variant="outline" size="sm" disabled={removal.pending || connecting} onClick={() => { void disconnect(selectedEdge) }}>{removal.pending ? "Disconnecting…" : "Disconnect"}</Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedEdgeId(null)}>Close</Button>
+            </div>
+          </section> : null}
         </div>
 
         {selectedLeaf ? (
@@ -840,9 +948,21 @@ export function SkillConstellation({
 
             <SkillPrimaryAction leaf={selectedLeaf} />
 
+            {selectedRelationships.length ? <div className="mt-4 border-t border-border pt-3">
+              <p className="text-xs font-semibold text-muted-foreground">Connections</p>
+              <ul aria-label={`${selectedLeaf.title} connections`} className="mt-2 space-y-2">
+                {selectedRelationships.map((edge) => <li key={edge.id}>
+                  <button type="button" className="min-h-11 w-full break-words rounded-lg px-2 py-2 text-left text-sm underline decoration-border underline-offset-4 hover:bg-muted" onClick={() => selectEdge(edge)}>
+                    {edge.sourceSkillNodeId === selectedLeaf.skillNodeId ? edge.targetTitle : edge.sourceTitle}
+                    <span className="sr-only"> — select connection</span>
+                  </button>
+                </li>)}
+              </ul>
+            </div> : null}
+
             <details className="mt-3 text-sm">
               <summary className="min-h-11 cursor-pointer py-2 font-semibold">Map controls</summary>
-              <p className="text-xs leading-relaxed text-muted-foreground">Drag a skill to move it. Use arrow keys to explore; Alt + arrows moves the focused skill. Drag the background to pan. Ctrl/⌘ + scroll zooms. Fit all brings every skill into view. Connect by dragging the selected skill’s handle to another skill, or choose Connect and then a target. Escape cancels.</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">Drag a skill to move it. Use arrow keys to explore; Alt + arrows moves the focused skill. Drag the background to pan. Ctrl/⌘ + scroll zooms. Fit all brings every skill into view. Connect by dragging the selected skill’s handle to another skill, or choose Connect and then a target. Select a line to disconnect it. Escape, Exit connecting, or a blank-space click exits connection mode.</p>
             </details>
 
             <details className="mt-3 text-sm">

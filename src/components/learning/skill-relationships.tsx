@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useTransition } from "react"
 import { ArrowRightIcon, MoveHorizontalIcon } from "lucide-react"
 
-import { connectSkillRelationshipAction, manageSkillRelationshipAction } from "@/app/actions/skill-relationships"
+import { connectionDescription as accessibleRelationship, useConnectionRemoval } from "@/hooks/use-connection-removal"
 import { RelationshipConnectForm } from "@/components/learning/relationship-connect-form"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,12 +11,6 @@ import type {
   SkillTreeRelationship,
 } from "@/lib/learning/skill-tree-query"
 
-function accessibleRelationship(relationship: SkillTreeRelationship) {
-  return relationship.kind === "RELATED"
-    ? `${relationship.sourceTitle} is related to ${relationship.targetTitle}`
-    : `${relationship.sourceTitle} is a prerequisite for ${relationship.targetTitle}`
-}
-
 export function SkillRelationships({
   leaves,
   relationships,
@@ -25,39 +18,7 @@ export function SkillRelationships({
   leaves: SkillTreeLeaf[]
   relationships: SkillTreeRelationship[]
 }) {
-  const [removed, setRemoved] = useState<SkillTreeRelationship | null>(null)
-  const [error, setError] = useState("")
-  const [pending, startTransition] = useTransition()
-
-  function remove(relationship: SkillTreeRelationship) {
-    startTransition(async () => {
-      setError("")
-      try {
-        const form = new FormData()
-        form.set("relationshipId", relationship.id)
-        form.set("intent", "REMOVE")
-        const result = await manageSkillRelationshipAction(form)
-        if (result.error) setError(result.error)
-        else setRemoved(relationship)
-      } catch { setError("The connection could not be removed. Try again.") }
-    })
-  }
-
-  function undo() {
-    if (!removed) return
-    startTransition(async () => {
-      setError("")
-      try {
-        const form = new FormData()
-        form.set("sourceGoalSkillId", leaves.find((leaf) => leaf.skillNodeId === removed.sourceSkillNodeId)?.goalSkillId ?? "")
-        form.set("targetGoalSkillId", leaves.find((leaf) => leaf.skillNodeId === removed.targetSkillNodeId)?.goalSkillId ?? "")
-        form.set("kind", removed.kind)
-        const result = await connectSkillRelationshipAction({}, form)
-        if (result.error) setError(result.error)
-        else setRemoved(null)
-      } catch { setError("The connection could not be restored. Try again.") }
-    })
-  }
+  const { removed, error, pending, remove, undo, dismiss } = useConnectionRemoval(leaves)
 
   if (leaves.length < 2) return null
   const skillOptions = leaves.map(({ goalSkillId, title }) => ({ goalSkillId, title }))
@@ -71,7 +32,7 @@ export function SkillRelationships({
       {removed ? <div role="status" className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3 text-sm">
         <span>Removed: {accessibleRelationship(removed)}.</span>
         <Button variant="outline" size="sm" disabled={pending} onClick={undo}>Undo removal</Button>
-        <Button variant="ghost" size="sm" disabled={pending} onClick={() => setRemoved(null)}>Dismiss</Button>
+        <Button variant="ghost" size="sm" disabled={pending} onClick={dismiss}>Dismiss</Button>
       </div> : null}
       {error ? <p role="alert" className="mb-3 text-sm text-destructive">{error}</p> : null}
       <h2 id="skill-connections-heading" className="sr-only">

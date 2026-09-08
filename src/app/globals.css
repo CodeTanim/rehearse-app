@@ -493,6 +493,11 @@ body {
 .constellation-search { flex: 1 1 10rem; min-width: 0; max-width: 20rem; }
 .constellation-search-results { padding: 0.75rem 1.25rem; max-height: 12rem; overflow-y: auto; }
 .constellation-connect-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 0.75rem 1.25rem; background: var(--garden-forest-light); }
+.constellation-connect-bar .paper-input { width: auto; max-width: 100%; flex: 0 1 11rem; }
+.constellation-connect-bar > p { flex-basis: 12rem; }
+.constellation-edge-tools { position: absolute; bottom: 1rem; left: 1rem; z-index: 5; max-width: min(26rem, calc(100% - 2rem)); border: 1px solid var(--border); border-radius: 1rem; padding: 1rem; background: var(--card); box-shadow: 0 8px 24px rgb(25 52 41 / 12%); }
+.constellation-connection-feedback { position: fixed; right: 1rem; bottom: 1rem; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; max-width: min(32rem, calc(100vw - 2rem)); padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--card); box-shadow: 0 8px 30px rgb(25 52 41 / 16%); }
+.constellation-connection-feedback p { flex: 1 1 100%; }
 .constellation-node[data-connection-source="true"]::before { outline: 2px dashed var(--garden-forest); outline-offset: 5px; }
 .constellation-connect-handle { position: absolute; right: -20px; top: 42%; z-index: 3; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 50%; background: var(--card); color: var(--garden-forest); cursor: crosshair; touch-action: none; }
 .constellation-connect-handle:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
@@ -567,6 +572,9 @@ body {
 .constellation-line[data-active="false"] {
   opacity: 0.38;
 }
+.constellation-line[data-selected="true"] { stroke-width: 3; stroke: var(--garden-forest); }
+.constellation-line-target { fill: none; stroke: transparent; stroke-width: 24; vector-effect: non-scaling-stroke; pointer-events: stroke; cursor: pointer; }
+.constellation-line-target:focus-visible { outline: none; stroke: color-mix(in srgb, var(--garden-forest) 25%, transparent); }
 
 .constellation-node-list {
   position: absolute;
@@ -575,12 +583,14 @@ body {
   margin: 0;
   padding: 0;
   list-style: none;
+  pointer-events: none;
 }
 
 .constellation-node-position {
   position: absolute;
   width: 200px;
   min-width: 0;
+  pointer-events: auto;
 }
 
 .constellation-node {
@@ -829,6 +839,7 @@ body {
     display: none;
   }
   .constellation-connect-handle { display: none; }
+  .constellation-edge-tools { display: none; }
 
   .constellation-stage::before,
   .constellation-lines {
