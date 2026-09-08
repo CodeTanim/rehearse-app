@@ -18,14 +18,21 @@ import {
   MinusIcon,
   PlusIcon,
   RotateCcwIcon,
+  ScanIcon,
 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ButtonLink } from "@/components/ui/button-link"
 import type { SkillTreeRelationship } from "@/lib/learning/skill-tree-query"
+import { connectSkillRelationshipAction } from "@/app/actions/skill-relationships"
+import { useSkillPlacement } from "@/hooks/use-skill-placement"
+import { boundedPosition, defaultNodePosition, fitCanvas, MIN_CANVAS_ZOOM, MAX_CANVAS_ZOOM } from "@/lib/learning/canvas-geometry"
 
 export type SkillConstellationLeaf = {
+  mapX?: number | null
+  mapY?: number | null
+  positionVersion?: number
   skillNodeId: string
   goalId: string
   goalSkillId: string
@@ -42,12 +49,10 @@ export type SkillConstellationLeaf = {
 type Point = { x: number; y: number }
 type NodeGeometry = Point & { width: number; height: number }
 
-const nodeX = [4, 38, 70]
-const nodeLift = [18, -8, 30, -12, 22, 2]
 const nodeTilt = ["-3deg", "2deg", "-1deg", "3deg", "-2deg", "1deg"]
 
-const MIN_ZOOM = 0.65
-const MAX_ZOOM = 2.2
+const MIN_ZOOM = MIN_CANVAS_ZOOM
+const MAX_ZOOM = MAX_CANVAS_ZOOM
 const ZOOM_STEP = 0.18
 
 function stageLabel(stage: string) {
@@ -190,6 +195,18 @@ export function SkillConstellation({
   const [zoom, setZoom] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
+  const placement = useSkillPlacement(leaves)
+  const [query, setQuery] = useState("")
+  const [connectFrom, setConnectFrom] = useState<string | null>(null)
+  const [connectionKind, setConnectionKind] = useState<"RELATED" | "PREREQUISITE">("RELATED")
+  const [connecting, setConnecting] = useState(false)
+  const [connectionMessage, setConnectionMessage] = useState("")
+  const [connectionError, setConnectionError] = useState("")
+  const [pointer, setPointer] = useState<Point | null>(null)
+  const dragRef = useRef<{ id: string; pointerId: number; start: Point; origin: Point; next: Point; moved: boolean } | null>(null)
+  const connectionDragRef = useRef<{ sourceId: string; pointerId: number } | null>(null)
+  const suppressClick = useRef(false)
+  const searchResults = query.trim() ? leaves.filter((leaf) => leaf.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) : []
   const panRef = useRef<
     | {
         pointerId: number
@@ -220,7 +237,7 @@ export function SkillConstellation({
       )
     : []
 
-  const stageHeight = Math.max(560, Math.ceil(leaves.length / 3) * 220 + 120)
+  const stageHeight = 560
 
   const measureNodes = useCallback(() => {
     const stage = stageRef.current
@@ -264,7 +281,7 @@ export function SkillConstellation({
       cancelAnimationFrame(frame)
       observer.disconnect()
     }
-  }, [measureNodes])
+  }, [measureNodes, placement.positions])
 
   const registerNode = useCallback(
     (skillNodeId: string, node: HTMLButtonElement | null) => {
@@ -274,8 +291,20 @@ export function SkillConstellation({
     [],
   )
 
-  const moveFocus = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const moveFocus = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+      if (event.altKey && event.key.startsWith("Arrow") && !window.matchMedia("(max-width: 767px)").matches) {
+        event.preventDefault()
+        if (placement.saving || connectFrom) return
+        setConnectionMessage("")
+        const leaf = leaves[index]
+        const point = placement.positions[leaf.skillNodeId] ?? defaultNodePosition(index)
+        const step = event.shiftKey ? 80 : 24
+        void placement.commit(leaf.skillNodeId, {
+          x: point.x + (event.key === "ArrowRight" ? step : event.key === "ArrowLeft" ? -step : 0),
+          y: point.y + (event.key === "ArrowDown" ? step : event.key === "ArrowUp" ? -step : 0),
+        })
+        return
+      }
       let nextIndex: number | null = null
       if (event.key === "ArrowRight" || event.key === "ArrowDown") {
         nextIndex = (index + 1) % leaves.length
@@ -291,10 +320,108 @@ export function SkillConstellation({
       event.preventDefault()
       const nextLeaf = leaves[nextIndex]
       setSelectedId(nextLeaf.skillNodeId)
-      nodeRefs.current.get(nextLeaf.skillNodeId)?.focus()
-    },
-    [leaves],
-  )
+      nodeRefs.current.get(nextLeaf.skillNodeId)?.focus({ preventScroll: true })
+      revealNode(nextLeaf.skillNodeId)
+    }
+
+  function revealNode(id: string) {
+    const node = centers[id]
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      nodeRefs.current.get(id)?.scrollIntoView({ block: "nearest" })
+    } else if (node) {
+      setZoom(1)
+      setOffset({ x: stageSize.width / 2 - node.x, y: stageSize.height / 2 - node.y })
+    }
+  }
+
+  function fitAll() {
+    const view = fitCanvas(Object.values(centers), stageSize.width, stageSize.height)
+    setZoom(view.zoom)
+    setOffset(view.offset)
+  }
+
+  async function selectNode(leaf: SkillConstellationLeaf, explicitSource?: string) {
+    if (suppressClick.current) { suppressClick.current = false; return }
+    if (connecting) return
+    const sourceId = explicitSource ?? connectFrom
+    if (!sourceId) { setSelectedId(leaf.skillNodeId); return }
+    if (sourceId === leaf.skillNodeId) { setConnectionMessage("Choose a different skill to connect."); return }
+    const source = leaves.find((item) => item.skillNodeId === sourceId)
+    if (!source) return
+    setConnecting(true)
+    setConnectionError("")
+    try {
+      const form = new FormData()
+      form.set("sourceGoalSkillId", source.goalSkillId)
+      form.set("targetGoalSkillId", leaf.goalSkillId)
+      form.set("kind", connectionKind)
+      const result = await connectSkillRelationshipAction({}, form)
+      if (result.error) setConnectionError(result.error)
+      else {
+        setConnectionMessage(`${source.title} connected to ${leaf.title}.`)
+        setConnectFrom(null)
+        setPointer(null)
+        setSelectedId(leaf.skillNodeId)
+      }
+    } catch { setConnectionError("The skills could not be connected. Try again.") }
+    finally { setConnecting(false) }
+  }
+
+  function startNodeDrag(event: PointerEvent<HTMLButtonElement>, leaf: SkillConstellationLeaf, index: number) {
+    if (event.button !== 0 || connectFrom || placement.saving || window.matchMedia("(max-width: 767px)").matches) return
+    event.stopPropagation()
+    setConnectionMessage("")
+    suppressClick.current = false
+    const origin = placement.positions[leaf.skillNodeId] ?? defaultNodePosition(index)
+    dragRef.current = { id: leaf.skillNodeId, pointerId: event.pointerId, start: { x: event.clientX, y: event.clientY }, origin, next: origin, moved: false }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function moveNodeDrag(event: PointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    const dx = event.clientX - drag.start.x
+    const dy = event.clientY - drag.start.y
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return
+    drag.moved = true
+    drag.next = boundedPosition({ x: drag.origin.x + dx / zoom, y: drag.origin.y + dy / zoom })
+    setSelectedId(drag.id)
+    placement.preview(drag.id, drag.next)
+  }
+
+  function endNodeDrag(event: PointerEvent<HTMLButtonElement>, cancelled = false) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    suppressClick.current = drag.moved
+    if (cancelled) placement.preview(drag.id, drag.origin)
+    else if (drag.moved) void placement.commit(drag.id, drag.next)
+  }
+
+  function beginConnectionDrag(event: PointerEvent<HTMLButtonElement>, leaf: SkillConstellationLeaf) {
+    if (event.button !== 0 || connecting) return
+    event.stopPropagation()
+    suppressClick.current = false
+    setSelectedId(leaf.skillNodeId)
+    setConnectFrom(leaf.skillNodeId)
+    setConnectionError("")
+    setConnectionMessage("")
+    connectionDragRef.current = { sourceId: leaf.skillNodeId, pointerId: event.pointerId }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function endConnectionDrag(event: PointerEvent<HTMLButtonElement>, cancelled = false) {
+    const drag = connectionDragRef.current
+    if (!drag || event.pointerId !== drag.pointerId) return
+    connectionDragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    if (cancelled) { setConnectFrom(null); setPointer(null); return }
+    const hit = document.elementFromPoint(event.clientX, event.clientY)?.closest(".constellation-node-position")
+    const targetId = hit?.querySelector<HTMLButtonElement>("[data-skill-node-id]")?.dataset.skillNodeId
+    const target = leaves.find((leaf) => leaf.skillNodeId === targetId)
+    if (target && target.skillNodeId !== drag.sourceId) void selectNode(target, drag.sourceId)
+  }
 
   const openConnections = useCallback(() => {
     const panel = document.getElementById("skill-connections")
@@ -340,9 +467,10 @@ export function SkillConstellation({
     (event: WheelEvent<HTMLDivElement>) => {
       if (window.matchMedia("(max-width: 767px)").matches) return
       if (leaves.length === 0) return
+      if (!event.ctrlKey && !event.metaKey) return
       event.preventDefault()
 
-      const nextZoom = clampZoom(zoom + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP))
+      const nextZoom = clampZoom(zoom * Math.exp(-event.deltaY * 0.01))
       zoomAroundPoint(nextZoom, event.clientX, event.clientY)
     },
     [clampZoom, leaves.length, zoom, zoomAroundPoint],
@@ -423,11 +551,14 @@ export function SkillConstellation({
   }, [isPanning])
 
   return (
-    <div className="constellation-frame" data-testid="skill-constellation">
+    <div className="constellation-frame" data-testid="skill-constellation" onKeyDown={(event) => {
+      if (event.key === "Escape" && !connecting) { connectionDragRef.current = null; setConnectFrom(null); setPointer(null); setConnectionError(""); setQuery("") }
+    }}>
       <div className="constellation-frame__bar">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          {leaves.length} {leaves.length === 1 ? "skill" : "skills"}
-        </p>
+        <div className="constellation-search">
+          <label htmlFor={`${markerId}-search`} className="sr-only">Find a skill</label>
+          <input id={`${markerId}-search`} type="search" className="paper-input min-h-11 w-full px-3 text-sm" placeholder={`Find a skill (${leaves.length})`} value={query} onChange={(event) => setQuery(event.target.value)} />
+        </div>
         <div className="constellation-frame__controls">
           <Button
             type="button"
@@ -436,7 +567,7 @@ export function SkillConstellation({
             onClick={() => {
               const center = stageCenterPoint()
               if (!center) return
-              zoomAroundPoint(zoom - ZOOM_STEP, center.x, center.y)
+              zoomAroundPoint(zoom / (1 + ZOOM_STEP), center.x, center.y)
             }}
             data-canvas-control
             disabled={leaves.length === 0 || zoom <= MIN_ZOOM}
@@ -451,7 +582,7 @@ export function SkillConstellation({
             onClick={() => {
               const center = stageCenterPoint()
               if (!center) return
-              zoomAroundPoint(zoom + ZOOM_STEP, center.x, center.y)
+              zoomAroundPoint(zoom * (1 + ZOOM_STEP), center.x, center.y)
             }}
             data-canvas-control
             disabled={leaves.length === 0 || zoom >= MAX_ZOOM}
@@ -479,18 +610,50 @@ export function SkillConstellation({
           >
             {Math.round(zoom * 100)}%
           </span>
+          <Button type="button" variant="outline" size="sm" data-canvas-control disabled={!Object.keys(centers).length} onClick={fitAll}>
+            <ScanIcon aria-hidden="true" className="size-4" /> Fit all
+          </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            disabled={leaves.length < 2}
-            onClick={openConnections}
+            disabled={leaves.length < 2 || connecting}
+            aria-pressed={Boolean(connectFrom)}
+            onClick={() => {
+              suppressClick.current = false
+              setConnectFrom(connectFrom ? null : selectedLeaf?.skillNodeId ?? null)
+              setConnectionError("")
+              setConnectionMessage("")
+              setPointer(null)
+            }}
           >
             <CableIcon aria-hidden="true" className="size-4" />
             Connect
           </Button>
         </div>
       </div>
+
+      {query.trim() ? <div className="constellation-search-results">
+        <p role="status" className="text-xs text-muted-foreground">{searchResults.length ? `${searchResults.length} matches` : "No skills found. Try another name."}</p>
+        <ul aria-label="Matching skills" className="flex flex-wrap gap-2">
+          {searchResults.map((leaf) => <li key={leaf.skillNodeId}><Button variant="outline" size="sm" disabled={connecting} onClick={() => {
+            if (connectFrom) { void selectNode(leaf); return }
+            setSelectedId(leaf.skillNodeId); setQuery(""); revealNode(leaf.skillNodeId)
+            nodeRefs.current.get(leaf.skillNodeId)?.focus({ preventScroll: true })
+          }}>{leaf.title}</Button></li>)}
+        </ul>
+      </div> : null}
+
+      {connectFrom ? <div className="constellation-connect-bar" aria-label="Connect skills">
+        <p className="min-w-0 flex-1 break-words text-sm" role="status">{connecting ? "Connecting…" : `From ${leaves.find((leaf) => leaf.skillNodeId === connectFrom)?.title} — choose another skill.`}</p>
+        <select aria-label="Map connection type" className="paper-input min-h-11 px-3 text-sm" value={connectionKind} disabled={connecting} onChange={(event) => setConnectionKind(event.target.value as "RELATED" | "PREREQUISITE")}>
+          <option value="RELATED">Related</option><option value="PREREQUISITE">Prerequisite for</option>
+        </select>
+        <Button variant="ghost" size="sm" disabled={connecting} onClick={() => { setConnectFrom(null); setPointer(null) }}>Cancel</Button>
+        <Button variant="ghost" size="sm" disabled={connecting} onClick={() => { setConnectFrom(null); openConnections() }}>Use form</Button>
+      </div> : null}
+      {connectionError || placement.error ? <p role="alert" className="px-5 py-2 text-sm text-destructive">{connectionError || placement.error} {placement.error ? <button type="button" onClick={() => window.location.reload()} className="underline">Reload map</button> : null}</p> : null}
+      <p role="status" className="px-5 py-2 text-xs text-muted-foreground">{placement.saving ? "Saving position…" : connectionMessage || placement.message || "Select a skill to explore."}</p>
 
       <div className="constellation-layout">
         <div
@@ -499,7 +662,13 @@ export function SkillConstellation({
           style={{ height: stageHeight, touchAction: "none" }}
           onWheel={handleWheelZoom}
           onPointerDown={beginPan}
-          onPointerMove={updatePan}
+          onPointerMove={(event) => {
+            updatePan(event)
+            if (connectFrom && !window.matchMedia("(max-width: 767px)").matches) {
+              const rect = event.currentTarget.getBoundingClientRect()
+              setPointer({ x: (event.clientX - rect.left - offset.x) / zoom, y: (event.clientY - rect.top - offset.y) / zoom })
+            }
+          }}
           onPointerUp={endPan}
           onPointerCancel={endPan}
           onPointerLeave={endPan}
@@ -528,6 +697,7 @@ export function SkillConstellation({
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--garden-blue)" />
                   </marker>
                 </defs>
+                {connectFrom && pointer && centers[connectFrom] ? <path className="constellation-line" strokeDasharray="5 6" d={curvedPath(centers[connectFrom], pointer)} /> : null}
                 {visibleRelationships.map((relationship) => {
                   const source = centers[relationship.sourceSkillNodeId]
                   const target = centers[relationship.targetSkillNodeId]
@@ -554,11 +724,10 @@ export function SkillConstellation({
 
             <ul className="constellation-node-list" aria-label="Skill leaves">
               {leaves.map((leaf, index) => {
-                const column = index % 3
-                const row = Math.floor(index / 3)
+                const point = placement.positions[leaf.skillNodeId] ?? defaultNodePosition(index)
                 const style = {
-                  left: `${nodeX[column]}%`,
-                  top: `${68 + row * 220 + nodeLift[index % nodeLift.length]}px`,
+                  left: `${point.x}px`,
+                  top: `${point.y}px`,
                   "--node-tilt": nodeTilt[index % nodeTilt.length],
                 } as CSSProperties
                 const selected = selectedLeaf?.skillNodeId === leaf.skillNodeId
@@ -571,12 +740,19 @@ export function SkillConstellation({
                       ref={(node) => registerNode(leaf.skillNodeId, node)}
                       type="button"
                       className="constellation-node"
+                      data-skill-node-id={leaf.skillNodeId}
+                      data-connection-source={connectFrom === leaf.skillNodeId}
+                      aria-describedby={`${markerId}-selection-help`}
                       data-selected={selected}
                       data-stage={leaf.stage}
                       aria-pressed={selected}
                       aria-label={`${leaf.title}: ${stage}, ${urgency}, ${leaf.confidence.toLowerCase()} confidence`}
-                      onClick={() => setSelectedId(leaf.skillNodeId)}
+                      onClick={() => { void selectNode(leaf) }}
                       onKeyDown={(event) => moveFocus(event, index)}
+                      onPointerDown={(event) => startNodeDrag(event, leaf, index)}
+                      onPointerMove={moveNodeDrag}
+                      onPointerUp={(event) => endNodeDrag(event)}
+                      onPointerCancel={(event) => endNodeDrag(event, true)}
                     >
                       <span className="constellation-node__content">
                         <span className="constellation-node__glyph">
@@ -586,6 +762,17 @@ export function SkillConstellation({
                         <span className="constellation-node__state">{stage}</span>
                       </span>
                     </button>
+                    {selected && leaves.length > 1 ? <button
+                      type="button"
+                      className="constellation-connect-handle"
+                      aria-label={`Connect from ${leaf.title}`}
+                      title="Drag to another skill, or click to choose a target"
+                      disabled={connecting}
+                      onPointerDown={(event) => beginConnectionDrag(event, leaf)}
+                      onPointerUp={(event) => endConnectionDrag(event)}
+                      onPointerCancel={(event) => endConnectionDrag(event, true)}
+                      onClick={() => { if (!connecting) { suppressClick.current = false; setConnectFrom(leaf.skillNodeId); setConnectionError("") } }}
+                    ><CableIcon className="size-4" aria-hidden="true" /></button> : null}
                     {selected ? (
                       <div
                         className="constellation-mobile-detail"
@@ -654,6 +841,11 @@ export function SkillConstellation({
             <SkillPrimaryAction leaf={selectedLeaf} />
 
             <details className="mt-3 text-sm">
+              <summary className="min-h-11 cursor-pointer py-2 font-semibold">Map controls</summary>
+              <p className="text-xs leading-relaxed text-muted-foreground">Drag a skill to move it. Use arrow keys to explore; Alt + arrows moves the focused skill. Drag the background to pan. Ctrl/⌘ + scroll zooms. Fit all brings every skill into view. Connect by dragging the selected skill’s handle to another skill, or choose Connect and then a target. Escape cancels.</p>
+            </details>
+
+            <details className="mt-3 text-sm">
               <summary className="min-h-11 cursor-pointer py-2 font-semibold">
                 Why this state
               </summary>
@@ -664,6 +856,7 @@ export function SkillConstellation({
           </aside>
         ) : null}
       </div>
+      <p id={`${markerId}-selection-help`} className="sr-only">Arrow keys browse skills. Enter selects a skill, or connects it when connection mode is active. Escape cancels connection mode. On desktop, drag or use Alt plus arrow keys to move a skill.</p>
     </div>
   )
 }

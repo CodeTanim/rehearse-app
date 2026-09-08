@@ -222,4 +222,11 @@ describe("skill relationship service", () => {
     ).toBe(true)
     expect(wouldCreatePrerequisiteCycle([], "a", "b")).toBe(false)
   })
+
+  it("rechecks cycles when undo attempts to restore a removed prerequisite", async () => {
+    mocks.tx.skillRelationship.findUnique.mockResolvedValue({ id: "removed", status: "REMOVED" })
+    mocks.tx.skillRelationship.findMany.mockResolvedValue([{ sourceSkillNodeId: "node-a", targetSkillNodeId: "node-z" }])
+    await expect(connectSkillRelationship({ userId: "user-a", sourceGoalSkillId: "goal-skill-a", targetGoalSkillId: "goal-skill-b", kind: "PREREQUISITE" })).rejects.toMatchObject({ code: "PREREQUISITE_CYCLE" })
+    expect(mocks.tx.skillRelationship.update).not.toHaveBeenCalled()
+  })
 })

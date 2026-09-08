@@ -2,6 +2,23 @@
 
 Status: implemented baseline; remaining screens and accessibility validation are tracked feature by feature
 
+## Skill workspace update — 2026-09-08
+
+The soft-green constellation remains the desktop workspace. Its viewport is fixed
+at 560px high regardless of node count; Fit all and title search recover off-screen
+skills. Leaves use stable world coordinates saved to the learner's account. Drag a
+leaf or use Alt + arrow keys to reposition it. Ordinary wheel scrolling remains
+page scrolling; Ctrl/Command + wheel zooms the map.
+
+Only the selected leaf exposes a 44px connection handle. Draw from it to a target,
+or use Connect then click/tap/keyboard selection. Connection type is explicit in
+the contextual bar; Escape cancels, and Use form retains source context. Errors
+remain visible. The latest removed connection can be restored with Undo removal.
+
+Mobile keeps the normal-flow list, search and contextual connection choices, with
+no drag interception or map zoom controls. Movement/connection changes never
+change learning evidence. Automatic grouping remains deferred.
+
 Last updated: 2026-09-07
 
 ## Direction

@@ -32,13 +32,14 @@ See [plan.md](./plan.md) for the reviewed product, security, accessibility, and 
 | Implemented in the local prototype | Evidence-derived Unassessed, Learning, Demonstrated, and Well learned policy |
 | Implemented in the local prototype | User-wide Constellation Garden with independent leaves and learner-created Related/Prerequisite lines |
 | Implemented in the local prototype | Desktop pan/zoom/reset, scrollable mobile skill list, and selected-skill connection context |
+| Implemented in the local prototype | Account-saved node placement, Fit all, title search, drawn/click/tap connections, and undo for the latest connection removal |
 | Implemented in the local prototype | Soft white-and-green botanical UI with Today, Tree, and Progress navigation |
 | Implemented foundation | Strict Vercel AI SDK boundary, citation validation, competency coverage, and hidden transfer probes |
 | Legacy local capability | Skill-folder creation and organization |
 | Legacy local capability | Basic note and local-file workflows |
 | In progress | Phase 0 security, privacy, build, and accessibility baseline |
 | Planned next | Managed production database/object storage and provider-backed generation evaluation |
-| Planned | Search, filters, fit-all/bounded canvas navigation, pointer-drawn connections, and connection editing |
+| Planned | State filters, explicit Map/List switching, connection editing, and large-map performance validation |
 | Future opt-in | Generate related Skill Trees as previewed, reversible groupings over existing leaves |
 | Deferred | Collaboration, public maps, advanced graph overlays, native mobile, offline-first support, and gamification |
 

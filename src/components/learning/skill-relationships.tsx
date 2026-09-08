@@ -1,6 +1,9 @@
+"use client"
+
+import { useState, useTransition } from "react"
 import { ArrowRightIcon, MoveHorizontalIcon } from "lucide-react"
 
-import { manageSkillRelationshipAction } from "@/app/actions/skill-relationships"
+import { connectSkillRelationshipAction, manageSkillRelationshipAction } from "@/app/actions/skill-relationships"
 import { RelationshipConnectForm } from "@/components/learning/relationship-connect-form"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,25 +18,6 @@ function accessibleRelationship(relationship: SkillTreeRelationship) {
     : `${relationship.sourceTitle} is a prerequisite for ${relationship.targetTitle}`
 }
 
-function RemoveRelationship({ relationship }: { relationship: SkillTreeRelationship }) {
-  const description = accessibleRelationship(relationship)
-
-  return (
-    <form action={manageSkillRelationshipAction}>
-      <input type="hidden" name="relationshipId" value={relationship.id} />
-      <input type="hidden" name="intent" value="REMOVE" />
-      <Button
-        type="submit"
-        variant="ghost"
-        size="sm"
-        aria-label={`Remove: ${description}`}
-      >
-        Remove
-      </Button>
-    </form>
-  )
-}
-
 export function SkillRelationships({
   leaves,
   relationships,
@@ -41,6 +25,40 @@ export function SkillRelationships({
   leaves: SkillTreeLeaf[]
   relationships: SkillTreeRelationship[]
 }) {
+  const [removed, setRemoved] = useState<SkillTreeRelationship | null>(null)
+  const [error, setError] = useState("")
+  const [pending, startTransition] = useTransition()
+
+  function remove(relationship: SkillTreeRelationship) {
+    startTransition(async () => {
+      setError("")
+      try {
+        const form = new FormData()
+        form.set("relationshipId", relationship.id)
+        form.set("intent", "REMOVE")
+        const result = await manageSkillRelationshipAction(form)
+        if (result.error) setError(result.error)
+        else setRemoved(relationship)
+      } catch { setError("The connection could not be removed. Try again.") }
+    })
+  }
+
+  function undo() {
+    if (!removed) return
+    startTransition(async () => {
+      setError("")
+      try {
+        const form = new FormData()
+        form.set("sourceGoalSkillId", leaves.find((leaf) => leaf.skillNodeId === removed.sourceSkillNodeId)?.goalSkillId ?? "")
+        form.set("targetGoalSkillId", leaves.find((leaf) => leaf.skillNodeId === removed.targetSkillNodeId)?.goalSkillId ?? "")
+        form.set("kind", removed.kind)
+        const result = await connectSkillRelationshipAction({}, form)
+        if (result.error) setError(result.error)
+        else setRemoved(null)
+      } catch { setError("The connection could not be restored. Try again.") }
+    })
+  }
+
   if (leaves.length < 2) return null
   const skillOptions = leaves.map(({ goalSkillId, title }) => ({ goalSkillId, title }))
   const visibleRelationships = relationships.filter(
@@ -50,6 +68,12 @@ export function SkillRelationships({
 
   return (
     <section aria-labelledby="skill-connections-heading">
+      {removed ? <div role="status" className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-3 text-sm">
+        <span>Removed: {accessibleRelationship(removed)}.</span>
+        <Button variant="outline" size="sm" disabled={pending} onClick={undo}>Undo removal</Button>
+        <Button variant="ghost" size="sm" disabled={pending} onClick={() => setRemoved(null)}>Dismiss</Button>
+      </div> : null}
+      {error ? <p role="alert" className="mb-3 text-sm text-destructive">{error}</p> : null}
       <h2 id="skill-connections-heading" className="sr-only">
         Skill connections
       </h2>
@@ -93,7 +117,7 @@ export function SkillRelationships({
                         <Badge variant="muted">
                           {relationship.kind === "RELATED" ? "Related" : "Prerequisite"}
                         </Badge>
-                        <RemoveRelationship relationship={relationship} />
+                        <Button type="button" variant="ghost" size="sm" disabled={pending} aria-label={`Remove: ${description}`} onClick={() => remove(relationship)}>Remove</Button>
                       </div>
                     </article>
                   </li>

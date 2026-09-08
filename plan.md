@@ -9,6 +9,20 @@
 
 ## 1. Executive decision
 
+### Skill workspace checkpoint — 2026-09-08
+
+- [x] Desktop drag and Alt + arrow movement save account-owned coordinates with version checks. Conflicts/unavailable skills are not overwritten; failed saves revert the preview and offer recovery.
+- [x] Fit all computes the bounds of the skill nodes inside a fixed-height desktop viewport. Search selects and reveals a named skill; keyboard exploration also reveals the focused skill.
+- [x] A selected-node handle supports drawing a line to another skill. Connect → target selection supports keyboard/tap, title search, Related/Prerequisite choice, cancellation, and the native form fallback.
+- [x] Removing a connection exposes errors and an Undo removal action until dismissed, replaced by another removal, or the page is left. Restoration reuses ownership, duplicate, and prerequisite-cycle validation; evidence is unchanged.
+- [x] Mobile remains a normal scrolling list; map gestures and connection handles are desktop-only, while search and tap/form connections remain available.
+- [ ] Explicit Map/List toggle, state filters, connection type/direction editing, and live 50-node performance/screen-reader validation remain future work. Fit geometry has 1/10/50-node unit coverage, not a performance certification.
+
+No new dependencies or framework changes. The additive
+`20260908000000_skill_map_positions` migration stores positions on SkillNode,
+separately from mastery and scheduling data. Automatic related-tree generation
+remains deferred and never runs when nodes move or connect.
+
 ### Latest implementation checkpoint — 2026-09-07
 
 The first UX-correctness slice is implemented locally. The detailed findings and

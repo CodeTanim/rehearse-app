@@ -4,6 +4,9 @@ import { dueStateAt, readinessReason, type DueState } from "@/lib/learning/today
 export type SkillTreeDueState = DueState | "NOT_SCHEDULED"
 
 export type SkillTreeLeaf = {
+  mapX?: number | null
+  mapY?: number | null
+  positionVersion?: number
   skillNodeId?: string
   goalId: string
   goalTitle: string
@@ -121,6 +124,9 @@ export async function getOwnedSkillTree(
           lifecycle: true,
           skillNode: {
             select: {
+              mapX: true,
+              mapY: true,
+              positionVersion: true,
               id: true,
               title: true,
               outcome: true,
@@ -181,6 +187,9 @@ export async function getOwnedSkillTree(
 
     return {
       skillNodeId: goalSkill.skillNode.id,
+      mapX: goalSkill.skillNode.mapX,
+      mapY: goalSkill.skillNode.mapY,
+      positionVersion: goalSkill.skillNode.positionVersion,
       goalId: goal.id,
       goalTitle: goal.title,
       goalOutcome: goal.outcome,
@@ -269,6 +278,9 @@ export async function getUserSkillGarden(
             lifecycle: true,
             skillNode: {
               select: {
+                mapX: true,
+                mapY: true,
+                positionVersion: true,
                 id: true,
                 title: true,
                 outcome: true,
@@ -395,6 +407,9 @@ export async function getUserSkillGarden(
 
       leavesBySkillNode.set(goalSkill.skillNode.id, {
         skillNodeId: goalSkill.skillNode.id,
+        mapX: goalSkill.skillNode.mapX,
+        mapY: goalSkill.skillNode.mapY,
+        positionVersion: goalSkill.skillNode.positionVersion,
         goalId: goal.id,
         goalTitle: goal.title,
         goalOutcome: goal.outcome,

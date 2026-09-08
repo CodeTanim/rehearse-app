@@ -147,6 +147,9 @@ export function SkillTree(props: SkillTreeProps) {
             evidenceCount: leaf.evidenceCount,
             successCount: leaf.successCount,
             reason: leaf.reason,
+            mapX: leaf.mapX,
+            mapY: leaf.mapY,
+            positionVersion: leaf.positionVersion,
           }))}
           relationships={relationships}
           timezone={timezone}

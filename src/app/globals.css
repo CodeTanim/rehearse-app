@@ -479,6 +479,7 @@ body {
 
 .constellation-frame__bar {
   display: flex;
+  flex-wrap: wrap;
   min-height: 3.75rem;
   align-items: center;
   justify-content: space-between;
@@ -487,6 +488,18 @@ body {
   padding: 0.65rem 0.8rem 0.65rem 1.25rem;
   background: rgb(255 255 255 / 68%);
   backdrop-filter: blur(10px);
+}
+
+.constellation-search { flex: 1 1 10rem; min-width: 0; max-width: 20rem; }
+.constellation-search-results { padding: 0.75rem 1.25rem; max-height: 12rem; overflow-y: auto; }
+.constellation-connect-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 0.75rem 1.25rem; background: var(--garden-forest-light); }
+.constellation-node[data-connection-source="true"]::before { outline: 2px dashed var(--garden-forest); outline-offset: 5px; }
+.constellation-connect-handle { position: absolute; right: -20px; top: 42%; z-index: 3; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 50%; background: var(--card); color: var(--garden-forest); cursor: crosshair; touch-action: none; }
+.constellation-connect-handle:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+
+@media (min-width: 768px) {
+  /* Connection mode must not move the canvas underneath an active drag. */
+  .constellation-connect-bar { position: absolute; left: 0; right: 0; z-index: 5; box-shadow: 0 4px 12px rgb(25 52 41 / 5%); }
 }
 
 .constellation-frame__controls {
@@ -566,7 +579,7 @@ body {
 
 .constellation-node-position {
   position: absolute;
-  width: clamp(9.5rem, 24%, 13rem);
+  width: 200px;
   min-width: 0;
 }
 
@@ -582,7 +595,8 @@ body {
   padding: 1.2rem 1rem;
   background: transparent;
   color: var(--garden-ink);
-  cursor: pointer;
+  cursor: grab;
+  user-select: none;
   text-align: center;
   isolation: isolate;
 }
@@ -814,6 +828,7 @@ body {
   .constellation-frame__controls [data-canvas-control] {
     display: none;
   }
+  .constellation-connect-handle { display: none; }
 
   .constellation-stage::before,
   .constellation-lines {
@@ -828,6 +843,7 @@ body {
 
   .constellation-node-position {
     position: static;
+    width: 100%;
     width: 100%;
   }
 

@@ -81,8 +81,17 @@ describe("skill relationship Server Actions", () => {
     form.set("relationshipId", "relationship-a")
     form.set("intent", "ACCEPT")
 
-    await manageSkillRelationshipAction(form)
+    await expect(manageSkillRelationshipAction(form)).resolves.toEqual({ error: "Sign in to continue." })
     expect(mocks.updateStatus).not.toHaveBeenCalled()
+  })
+
+  it("returns removal errors instead of silently hiding a failed mutation", async () => {
+    mocks.updateStatus.mockRejectedValue(new mocks.RelationshipError("INVALID_STATUS", "That connection has already changed."))
+    const form = new FormData()
+    form.set("relationshipId", "relationship-a")
+    form.set("intent", "REMOVE")
+    await expect(manageSkillRelationshipAction(form)).resolves.toEqual({ error: "That connection has already changed." })
+    expect(mocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it.each(["ACCEPT", "DISMISS", "REMOVE"] as const)(

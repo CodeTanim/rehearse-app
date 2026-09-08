@@ -57,9 +57,9 @@ export async function connectSkillRelationshipAction(
   return {}
 }
 
-export async function manageSkillRelationshipAction(formData: FormData): Promise<void> {
+export async function manageSkillRelationshipAction(formData: FormData): Promise<LearningActionState> {
   const session = await auth()
-  if (!session?.user?.id) return
+  if (!session?.user?.id) return { error: "Sign in to continue." }
 
   try {
     const mutation = mutationSchema.parse({
@@ -72,13 +72,15 @@ export async function manageSkillRelationshipAction(formData: FormData): Promise
       action: mutation.intent,
     })
   } catch (error) {
-    if (error instanceof z.ZodError || error instanceof SkillRelationshipError) return
+    if (error instanceof z.ZodError) return { error: firstValidationError(error) }
+    if (error instanceof SkillRelationshipError) return { error: error.publicMessage }
     console.error(
       "Skill relationship update failed.",
       error instanceof Error ? error.name : "UnknownError",
     )
-    return
+    return { error: "The connection could not be removed. Try again." }
   }
 
   revalidatePath("/skills")
+  return {}
 }
