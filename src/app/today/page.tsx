@@ -26,11 +26,13 @@ function ReviewHome({
   kind,
   sessionId,
   timezone,
+  selected = false,
 }: {
   leaf: TodayLeaf
   kind: "RESUME" | "REVIEW" | "CURRENT"
   sessionId?: string
   timezone: string
+  selected?: boolean
 }) {
   const timing =
     kind === "CURRENT"
@@ -44,7 +46,10 @@ function ReviewHome({
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Today</h1>
+        {selected && kind !== "CURRENT" ? (
+          <ButtonLink href={`/skills/${leaf.goalSkillId}`} variant="ghost" size="sm" className="mb-3 -ml-2">Back to skill</ButtonLink>
+        ) : null}
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{selected ? "Recall" : "Today"}</h1>
       </header>
 
       <PaperCard tone={kind === "CURRENT" ? "sage" : "note"}>
@@ -60,8 +65,8 @@ function ReviewHome({
           ) : kind === "REVIEW" ? (
             <StartReviewForm goalSkillId={leaf.goalSkillId} />
           ) : (
-            <ButtonLink href="/today/new" size="lg" className="w-full sm:w-auto">
-              Learn something
+            <ButtonLink href={selected ? `/skills/${leaf.goalSkillId}` : "/today/new"} size="lg" className="w-full sm:w-auto">
+              {selected ? "Back to skill" : "Learn something"}
             </ButtonLink>
           )}
         </PaperCardContent>
@@ -157,6 +162,14 @@ export default async function TodayPage({
           <ButtonLink href={data.href} size="lg" className="mt-7 w-full sm:w-auto">
             Strengthen
           </ButtonLink>
+          {data.recall ? (
+            <div className="mt-6 border-t border-border pt-4">
+              <p className="text-sm text-muted-foreground">Recall also due</p>
+              <ButtonLink href={`/today?skill=${encodeURIComponent(data.recall.goalSkillId)}`} variant="outline" className="mt-2 h-auto min-h-11 max-w-full whitespace-normal text-left">
+                Recall · {data.recall.title}
+              </ButtonLink>
+            </div>
+          ) : null}
         </div>
       </AppShell>
     )
@@ -169,6 +182,7 @@ export default async function TodayPage({
         kind={data.kind}
         sessionId={data.kind === "RESUME" ? data.sessionId : undefined}
         timezone={user?.timezone ?? "UTC"}
+        selected={Boolean(preferredGoalSkillId)}
       />
     </AppShell>
   )

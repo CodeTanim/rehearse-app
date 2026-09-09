@@ -260,6 +260,7 @@ describe("today multi-skill selection", () => {
       skillTitle: "arrays",
       gapLabel: "Explain arrays precisely",
       href: "/skills/arrays/strengthen/gap-older",
+      recall: { goalSkillId: "due-skill", title: "due-skill" },
     })
   })
 
@@ -268,6 +269,31 @@ describe("today multi-skill selection", () => {
       kind: "EMPTY",
       href: "/today/new",
     })
+  })
+
+  it("keeps repair primary while exposing the earliest due recall", () => {
+    const result = selectTodayData([
+      candidate({ id: "arrays", dueAt: new Date("2026-09-04T11:00:00Z") }),
+      candidate({ id: "maps", dueAt: new Date("2026-09-03T10:00:00Z") }),
+      candidate({ id: "draft", lifecycle: "DRAFT", dueAt: new Date("2026-09-01T10:00:00Z") }),
+    ], null, selectionNow, undefined, [strengthenCandidate({ gapId: "gap-a" })])
+    expect(result).toMatchObject({ kind: "STRENGTHEN", recall: { goalSkillId: "maps", title: "maps" } })
+  })
+
+  it("does not offer a future or unscheduled recall as due beside repair", () => {
+    const result = selectTodayData([
+      candidate({ id: "arrays", dueAt: new Date("2026-09-05T11:00:00Z") }),
+      candidate({ id: "maps", dueAt: null }),
+    ], null, selectionNow, undefined, [strengthenCandidate({ gapId: "gap-a" })])
+    expect(result.kind).toBe("STRENGTHEN")
+    expect(result).not.toHaveProperty("recall")
+  })
+
+  it("shows a selected skill's future schedule rather than another skill's repair", () => {
+    expect(selectTodayData([
+      candidate({ id: "arrays", dueAt: new Date("2026-09-05T11:00:00Z") }),
+    ], null, selectionNow, "arrays", [strengthenCandidate({ gapId: "gap-a" })]))
+      .toMatchObject({ kind: "CURRENT", leaf: { goalSkillId: "arrays" } })
   })
 })
 

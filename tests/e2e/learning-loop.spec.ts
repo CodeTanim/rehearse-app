@@ -107,16 +107,16 @@ test("creates a topic, grounds a mixed quiz, and adds the Skill Leaf", async ({ 
 
   await expect(page).toHaveURL(/\/skills\/[^/]+\/strengthen\/[^/]+$/)
   await expect(page.getByRole("heading", { name: "Supporting detail" })).toBeVisible()
-  await page.locator("summary").filter({ hasText: "Source" }).click()
+  await expect(page.getByRole("heading", { name: "Revisit this passage" })).toBeVisible()
   await expect(page.locator("blockquote")).toContainText("hash")
   await page.locator("textarea[name='answer']").fill(
     "The supporting detail explains how a hash function maps a key to a bucket.",
   )
   await page.getByRole("button", { name: "Finish practice" }).click()
   await expect(page.getByText(/does not raise mastery/i)).toBeVisible()
-  await page.getByRole("link", { name: "Back to Today" }).click()
+  await page.getByRole("link", { name: "View recall" }).click()
 
-  await expect(page).toHaveURL(/\/today$/)
+  await expect(page).toHaveURL(/\/today\?skill=/)
   await expect(page.getByRole("heading", { name: topic, level: 2 })).toBeVisible()
   await page.getByRole("link", { name: "Tree" }).click()
   await expect(page).toHaveURL(/\/skills$/)
@@ -154,9 +154,10 @@ test("creates a topic, grounds a mixed quiz, and adds the Skill Leaf", async ({ 
       await expect(page.getByText("Correct", { exact: true }).first()).toBeVisible()
     } else {
       await page.getByLabel("Your answer").fill("A source-grounded recall answer.")
-      await page.getByRole("button", { name: "Reveal answer" }).click()
+      await page.getByRole("button", { name: "Compare answer" }).click()
+      await page.getByRole("radio", { name: /Meets/ }).check()
     }
-    await page.getByRole("button", { name: /Correct.*Normal effort/ }).click()
+    await page.getByRole("button", { name: /Good.*Normal effort/ }).click()
     if (position === 1) {
       await expect(page.getByText(/recovered a previously missed idea/i)).toBeVisible()
     }
@@ -165,6 +166,15 @@ test("creates a topic, grounds a mixed quiz, and adds the Skill Leaf", async ({ 
   }
 
   await expect(page.getByText("New angle", { exact: true })).toBeVisible()
+  await page.getByRole("button", { name: "I don’t know", exact: true }).click()
+  await expect(page.getByText("Not answered", { exact: true })).toBeVisible()
+  await page.reload()
+  await expect(page.getByText("Not answered", { exact: true })).toBeVisible()
+  await expect(page.getByRole("button", { name: /Good.*Normal effort/ })).toHaveCount(0)
+  await page.getByRole("button", { name: "Continue", exact: true }).click()
+  await expect(page.getByRole("link", { name: "Done", exact: true })).toBeVisible()
+  await page.getByText("Review details", { exact: true }).click()
+  await expect(page.getByText(/Not answered.*no learning credit/)).toBeVisible()
 
   await page.emulateMedia({ reducedMotion: "reduce" })
   await page.setViewportSize({ width: 320, height: 800 })

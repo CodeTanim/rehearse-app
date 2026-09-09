@@ -29,6 +29,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       userId: session.user.id,
       itemId,
       rating: validated.data.rating,
+      ...(validated.data.assessment ? { assessment: validated.data.assessment } : {}),
       idempotencyKey: validated.data.idempotencyKey,
       expectedVersion: validated.data.expectedVersion,
     })

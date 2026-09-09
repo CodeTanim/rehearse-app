@@ -110,6 +110,7 @@ export default async function PracticePage({
   const lockedChoice = Number(checkpoint?.lockedAnswer)
   const initialObjectiveCorrect =
     hasRevealed &&
+    checkpoint?.lockedAnswer !== "" &&
     generatedSpec?.responseType === "MULTIPLE_CHOICE" &&
     Number.isInteger(lockedChoice) &&
     generatedSpec.correctChoiceIndex !== null

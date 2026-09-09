@@ -84,6 +84,45 @@ function wellLearnedEvidence() {
   ]
 }
 
+describe("inspectable Well learned gates", () => {
+  it("marks all requirements met exactly when the policy awards the milestone", () => {
+    const result = projectGoalSkillReadiness(input({ evidence: wellLearnedEvidence() }))
+    expect(result.stage).toBe("WELL_LEARNED")
+    expect(result.milestone?.requirements).toHaveLength(8)
+    expect(result.milestone?.requirements.every((gate) => gate.met)).toBe(true)
+  })
+
+  it.each([
+    ["coverage", { activeQuestionConceptVersionIds: [] }],
+    ["concepts", { requiredConceptVersionIds: [CONCEPT, "new-concept"] }],
+    ["spacing", { evidence: wellLearnedEvidence().slice(0, 3) }],
+    ["latest", { evidence: [...wellLearnedEvidence(), evidence("2026-02-01", 9, { rating: "HARD" })] }],
+    ["performance", { evidence: [...wellLearnedEvidence(), evidence("2026-02-01", 9, { rating: "AGAIN" })] }],
+    ["interval", { activeSchedules: [{ conceptVersionId: CONCEPT, dueAt: new Date("2026-02-01"), intervalMinutes: 20 * DAY }] }],
+    ["confidence", { evidence: wellLearnedEvidence().slice(0, 8) }],
+    ["transfer", { evidence: wellLearnedEvidence().map((item) => ({ ...item, kind: "SELF_ASSESSED_RECALL" })) }],
+  ] as Array<[string, Partial<GoalSkillReadinessInput>]>)("identifies the unmet %s gate", (id, overrides) => {
+    const result = projectGoalSkillReadiness(input({ evidence: wellLearnedEvidence(), ...overrides }))
+    expect(result.stage).not.toBe("WELL_LEARNED")
+    expect(result.milestone?.requirements.find((gate) => gate.id === id)?.met).toBe(false)
+  })
+
+  it("does not confuse being overdue with losing earned evidence", () => {
+    const past = new Date("2026-01-31")
+    const result = projectGoalSkillReadiness(input({ evidence: wellLearnedEvidence(), activeSchedules: [{ conceptVersionId: CONCEPT, dueAt: past, intervalMinutes: 30 * DAY }] }))
+    expect(result.milestone?.requirements.every((gate) => gate.met)).toBe(true)
+    expect(deriveDisplayStage(result.stage, deriveDueState(past, new Date("2026-02-01")))).toBe("REFRESH_DUE")
+  })
+
+  it("does not award an empty scope or inflate spacing just because time passes", () => {
+    const empty = projectGoalSkillReadiness(input({ requiredConceptVersionIds: [] }))
+    expect(empty.milestone?.requirements.find((gate) => gate.id === "coverage")?.met).toBe(false)
+    const waited = projectGoalSkillReadiness(input({ evidence: [evidence("2026-01-01", 0, { weight: 0.5 })], computedAt: new Date("2027-01-01") }))
+    expect(waited.milestone?.requirements.find((gate) => gate.id === "spacing")?.met).toBe(false)
+    expect(waited.spanDays).toBe(0)
+  })
+})
+
 describe("mastery-v1 evidence weighting", () => {
   it("uses half weight for the baseline, zero later that day, and full weight on a new day", () => {
     const baseline = evidence("2026-01-01", 0, { weight: 0.5 })

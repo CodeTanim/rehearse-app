@@ -45,15 +45,15 @@ export function RemediationForm({
           </span>
         </Alert>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <ButtonLink href="/today" className="w-full sm:w-auto">
-            Back to Today
+          <ButtonLink href={`/skills/${goalSkillId}`} className="w-full sm:w-auto">
+            Back to skill
           </ButtonLink>
           <ButtonLink
-            href={`/skills/${goalSkillId}/sources`}
+            href={`/today?skill=${encodeURIComponent(goalSkillId)}`}
             variant="ghost"
             className="w-full sm:w-auto"
           >
-            View sources
+            View recall
           </ButtonLink>
         </div>
       </div>
@@ -81,7 +81,6 @@ export function RemediationForm({
           maxLength={4_000}
           defaultValue={initialAnswer}
           placeholder="Explain it in your own words"
-          autoFocus={!alreadyCompleted}
           required
           error={state.error}
         />

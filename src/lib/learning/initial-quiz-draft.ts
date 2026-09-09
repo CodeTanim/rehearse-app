@@ -3,6 +3,7 @@ import type { VisibleInitialQuizQuestion } from "@/lib/ai/learning-pack-schema"
 
 const assessment = z.enum(["MISSED", "PARTIAL", "MEETS"])
 const answer = z.union([
+  z.object({ questionIndex: z.number().int().min(0).max(5), response: z.object({ skipped: z.literal(true) }).strict() }).strict(),
   z.object({ questionIndex: z.number().int().min(0).max(5), response: z.object({ selectedChoiceIndex: z.number().int().min(0).max(3) }).strict() }).strict(),
   z.object({ questionIndex: z.number().int().min(0).max(5), response: z.object({ text: z.string().min(1).max(4000) }).strict(), assessment }).strict(),
 ])
@@ -13,6 +14,7 @@ export const quizDraftStateSchema = z.object({
   selectedChoiceIndex: z.number().int().min(0).max(3).nullable(),
   shortResponse: z.string().max(4000),
   shortAssessment: assessment.nullable(),
+  skipped: z.boolean().optional(),
   completedAnswers: z.array(answer).max(5),
   completedAt: z.string().datetime().nullable(),
 }).strict()
@@ -39,6 +41,7 @@ export function validateQuizDraft(state: QuizDraftState, questions: readonly Vis
   }
   for (const [position, response] of state.completedAnswers.entries()) {
     const item = questions[position]
+    if (item && response.questionIndex === item.questionIndex && !item.question.isTransferProbe && "skipped" in response.response) continue
     if (!item || response.questionIndex !== item.questionIndex || item.question.isTransferProbe ||
       (item.question.type === "MULTIPLE_CHOICE"
         ? !("selectedChoiceIndex" in response.response) || response.response.selectedChoiceIndex >= item.question.choices.length
@@ -47,6 +50,10 @@ export function validateQuizDraft(state: QuizDraftState, questions: readonly Vis
     }
   }
   const current = questions[state.questionPosition].question
+  if (state.skipped) {
+    if (state.phase !== "feedback" || state.selectedChoiceIndex !== null || state.shortResponse || state.shortAssessment) throw new Error("The skipped answer is invalid.")
+    return state
+  }
   if (current.type === "MULTIPLE_CHOICE") {
     if (state.shortResponse || state.shortAssessment ||
       (state.selectedChoiceIndex !== null && state.selectedChoiceIndex >= current.choices.length) ||

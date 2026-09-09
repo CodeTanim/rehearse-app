@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { ButtonLink } from "@/components/ui/button-link"
 import { Textarea } from "@/components/ui/textarea"
 import { useQuizDraft } from "@/hooks/use-quiz-draft"
+import { AnswerAssessmentPicker } from "@/components/learning/answer-assessment"
 import type { QuizDraft, QuizDraftState } from "@/lib/learning/initial-quiz-draft"
 import {
   type LearningPack,
@@ -35,6 +36,7 @@ type ShortResponseAnswerInput = Readonly<{
 export type InitialQuizAnswerInput =
   | MultipleChoiceAnswerInput
   | ShortResponseAnswerInput
+  | Readonly<{ questionIndex: number; response: Readonly<{ skipped: true }> }>
 
 type AttemptAnswer = Readonly<{
   questionIndex: number
@@ -44,6 +46,7 @@ type AttemptAnswer = Readonly<{
   response:
     | Readonly<{ selectedChoiceIndex: number }>
     | Readonly<{ text: string }>
+    | Readonly<{ skipped: true }>
   result: Readonly<{
     assessment: InitialQuizAssessment
     isCorrect: boolean | null
@@ -122,6 +125,12 @@ export function buildInitialQuizAttemptPayload(input: {
       throw new Error("Complete every initial quiz question before saving.")
     }
 
+    if ("skipped" in answer.response) {
+      return freezeAttemptAnswer({ questionIndex, competencyId: question.competencyId, questionType: question.type,
+        prompt: question.prompt, response: { skipped: true }, result: { assessment: "MISSED", isCorrect: null },
+        referenceAnswer: question.referenceAnswer, explanation: question.explanation, citation: { ...question.citation } })
+    }
+
     if (question.type === "MULTIPLE_CHOICE") {
       if (!isMultipleChoiceAnswer(answer)) {
         throw new Error("The answer type does not match the generated question.")
@@ -154,7 +163,7 @@ export function buildInitialQuizAttemptPayload(input: {
       })
     }
 
-    if (isMultipleChoiceAnswer(answer) || !answer.response.text.trim()) {
+    if (isMultipleChoiceAnswer(answer) || !("text" in answer.response) || !("assessment" in answer) || !answer.response.text.trim()) {
       throw new Error("The answer type does not match the generated question.")
     }
 
@@ -202,18 +211,6 @@ async function responseError(response: Response) {
   return "Quiz could not be saved."
 }
 
-function assessmentLabel(assessment: InitialQuizAssessment) {
-  if (assessment === "MISSED") return "Missed"
-  if (assessment === "PARTIAL") return "Partial"
-  return "Meets"
-}
-
-const ASSESSMENTS: readonly InitialQuizAssessment[] = [
-  "MISSED",
-  "PARTIAL",
-  "MEETS",
-]
-
 export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraft }: InitialQuizProps) {
   const quizId = useId()
   const quizQuestions = useMemo(() => [...questions], [questions])
@@ -221,10 +218,13 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
   const [phase, setPhase] = useState<QuizPhase>(initialDraft?.state.phase ?? "answering")
   const [selectedChoiceIndex, setSelectedChoiceIndex] = useState<number | null>(initialDraft?.state.selectedChoiceIndex ?? null)
   const [shortResponse, setShortResponse] = useState(initialDraft?.state.shortResponse ?? "")
+  const [skipped, setSkipped] = useState(initialDraft?.state.skipped ?? false)
   const [shortAssessment, setShortAssessment] =
     useState<InitialQuizAssessment | null>(initialDraft?.state.shortAssessment ?? null)
   const [currentAnswer, setCurrentAnswer] = useState<InitialQuizAnswerInput | null>(() =>
-    initialDraft?.state.phase === "feedback" && initialDraft.state.selectedChoiceIndex !== null
+    initialDraft?.state.skipped
+      ? { questionIndex: questions[initialDraft.state.questionPosition].questionIndex, response: { skipped: true } }
+      : initialDraft?.state.phase === "feedback" && initialDraft.state.selectedChoiceIndex !== null
       ? { questionIndex: questions[initialDraft.state.questionPosition].questionIndex, response: { selectedChoiceIndex: initialDraft.state.selectedChoiceIndex } }
       : null)
   const [completedAnswers, setCompletedAnswers] = useState<InitialQuizAnswerInput[]>(initialDraft?.state.completedAnswers ?? [])
@@ -245,7 +245,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
   const sourceDetailsRef = useRef<HTMLDetailsElement>(null)
   const sourceSummaryRef = useRef<HTMLElement>(null)
   const draftState: QuizDraftState = { questionPosition, phase, selectedChoiceIndex, shortResponse,
-    shortAssessment, completedAnswers, completedAt }
+    shortAssessment, completedAnswers, completedAt, skipped }
   const draft = useQuizDraft(packVersionId, initialDraft, draftState, submissionState !== "complete")
   const loginHref = `/auth/login?returnTo=${encodeURIComponent(`/skills/${goalSkillId}/quiz?start=1`)}`
   const draftStatus = initialDraft ? (
@@ -302,7 +302,9 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
 
     try {
       await draft.save({ ...draftState, completedAnswers: completedAnswers.length === questions.length ? completedAnswers :
-        payload.answers.map((answer) => "selectedChoiceIndex" in answer.response
+        payload.answers.map((answer) => "skipped" in answer.response
+          ? { questionIndex: answer.questionIndex, response: answer.response }
+          : "selectedChoiceIndex" in answer.response
           ? { questionIndex: answer.questionIndex, response: answer.response }
           : { questionIndex: answer.questionIndex, response: answer.response, assessment: answer.result.assessment }), completedAt: payload.completedAt })
       const response = await fetch(initialQuizAttemptsEndpoint(packVersionId), {
@@ -362,6 +364,18 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
     setShortResponse("")
     setShortAssessment(null)
     setCurrentAnswer(null)
+    setSkipped(false)
+  }
+
+  const skipQuestion = () => {
+    if (phase !== "answering") return
+    markStarted()
+    setSelectedChoiceIndex(null)
+    setShortResponse("")
+    setShortAssessment(null)
+    setSkipped(true)
+    setCurrentAnswer({ questionIndex: packQuestionIndex, response: { skipped: true } })
+    setPhase("feedback")
   }
 
   const checkMultipleChoice = () => {
@@ -402,6 +416,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
 
   if (submissionState !== "idle") {
     const metCount = completedAnswers.reduce((count, answer) => {
+      if (!("assessment" in answer) && !isMultipleChoiceAnswer(answer)) return count
       if (isMultipleChoiceAnswer(answer)) {
         const question = quizQuestions.find(
           (candidate) => candidate.questionIndex === answer.questionIndex,
@@ -409,7 +424,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
         return count +
           (question?.correctChoiceIndex === answer.response.selectedChoiceIndex ? 1 : 0)
       }
-      return count + (answer.assessment === "MEETS" ? 1 : 0)
+      return count + ("assessment" in answer && answer.assessment === "MEETS" ? 1 : 0)
     }, 0)
     const reviewQuestions = completedAnswers.flatMap((answer) => {
       const quizQuestion = quizQuestions.find(
@@ -419,7 +434,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
 
       const needsReview = isMultipleChoiceAnswer(answer)
         ? quizQuestion.question.correctChoiceIndex !== answer.response.selectedChoiceIndex
-        : answer.assessment !== "MEETS"
+        : !("assessment" in answer) || answer.assessment !== "MEETS"
       return needsReview ? [quizQuestion.question] : []
     })
 
@@ -512,7 +527,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
     (currentQuestion.type === "MULTIPLE_CHOICE" &&
       phase === "feedback" &&
       !multipleChoiceIsCorrect) ||
-    (currentQuestion.type === "SHORT_RESPONSE" && shortAssessment === "MISSED")
+    skipped || (currentQuestion.type === "SHORT_RESPONSE" && shortAssessment !== null && shortAssessment !== "MEETS")
 
   return (
     <section className="mx-auto min-w-0 max-w-2xl space-y-5" aria-labelledby={`${quizId}-question`}>
@@ -602,9 +617,12 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
           </fieldset>
 
           {phase === "answering" ? (
+            <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={selectedChoiceIndex === null} className="w-full sm:w-auto">
               Check answer
             </Button>
+            <Button type="button" variant="ghost" onClick={skipQuestion}>I don’t know</Button>
+            </div>
           ) : (
             <div className="space-y-5">
               <div
@@ -614,8 +632,9 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
                 aria-live="polite"
               >
                 <h3 className="font-semibold">
-                  {multipleChoiceIsCorrect ? "Correct" : "Missed"}
+                  {skipped ? "Not answered" : multipleChoiceIsCorrect ? "Correct" : "Missed"}
                 </h3>
+                {skipped ? <p className="text-sm text-muted-foreground">No learning credit. Review the explanation, then try again in recall.</p> : null}
                 <p className="text-sm leading-6 text-muted-foreground">
                   {currentQuestion.explanation}
                 </p>
@@ -650,6 +669,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
               compareShortResponse()
               return
             }
+            if (skipped && currentAnswer) { advance(currentAnswer); return }
             if (!shortAssessment) return
             advance({
               questionIndex: packQuestionIndex,
@@ -658,7 +678,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
             })
           }}
         >
-          <div className="space-y-1.5">
+          {!skipped ? <div className="space-y-1.5">
             <label htmlFor={`${quizId}-short-answer`} className="text-sm font-medium">
               Your answer
             </label>
@@ -673,12 +693,15 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
               maxLength={4_000}
               autoFocus
             />
-          </div>
+          </div> : null}
 
           {phase === "answering" ? (
+            <div className="flex flex-wrap gap-2">
             <Button type="submit" disabled={!shortResponse.trim()} className="w-full sm:w-auto">
               Compare answer
             </Button>
+            <Button type="button" variant="ghost" onClick={skipQuestion}>I don’t know</Button>
+            </div>
           ) : (
             <div className="space-y-5">
               <div
@@ -687,7 +710,8 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
                 className="space-y-3 rounded-lg border border-border bg-muted p-4 focus:outline-none"
                 aria-live="polite"
               >
-                <h3 className="font-semibold">Reference / rubric</h3>
+                <h3 className="font-semibold">Reference answer</h3>
+                {skipped ? <p className="text-sm text-muted-foreground">Not answered · no learning credit. Review this, then try again in recall.</p> : null}
                 <p className="whitespace-pre-wrap break-words leading-7">
                   {currentQuestion.referenceAnswer}
                 </p>
@@ -703,31 +727,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
                 citation={currentQuestion.citation}
               />
 
-              <fieldset>
-                <legend className="mb-2 text-sm font-medium">How did your answer compare?</legend>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  {ASSESSMENTS.map((assessment) => {
-                    const assessmentId = `${quizId}-${assessment.toLowerCase()}`
-                    return (
-                      <label
-                        key={assessment}
-                        htmlFor={assessmentId}
-                        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium"
-                      >
-                        <input
-                          id={assessmentId}
-                          type="radio"
-                          name={`${quizId}-assessment`}
-                          checked={shortAssessment === assessment}
-                          onChange={() => setShortAssessment(assessment)}
-                          className="size-4 accent-primary"
-                        />
-                        {assessmentLabel(assessment)}
-                      </label>
-                    )
-                  })}
-                </div>
-              </fieldset>
+              {!skipped ? <AnswerAssessmentPicker value={shortAssessment} onChange={setShortAssessment} /> : null}
 
               <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
                 {missed ? (
@@ -735,7 +735,7 @@ export function InitialQuiz({ goalSkillId, packVersionId, questions, initialDraf
                     Review source
                   </Button>
                 ) : null}
-                <Button type="submit" disabled={!shortAssessment} className="w-full sm:w-auto">
+                <Button type="submit" disabled={!skipped && !shortAssessment} className="w-full sm:w-auto">
                   {questionPosition === questions.length - 1 ? "Finish quiz" : "Next"}
                 </Button>
               </div>

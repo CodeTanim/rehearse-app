@@ -3,11 +3,49 @@
 | Field | Value |
 |---|---|
 | Status | Active implementation; source-first learning, cited remediation, recall, and the Constellation Garden ship locally |
-| Last updated | 2026-09-07 |
+| Last updated | 2026-09-09 |
 | Repository | rehearse-app |
 | Release target | Robust portfolio MVP |
 
 ## 1. Executive decision
+
+### Cited repair and recall navigation checkpoint — 2026-09-09
+
+- [x] Today keeps Strengthen as its recommendation while exposing the earliest due, active, owned skill as a named secondary recall link. Future recalls are not presented as due; existing session-resume/conflict rules remain in place.
+- [x] Skill overview offers Recall now beside Strengthen, or Recall schedule when current. Initial-quiz and unscheduled skills do not receive a misleading recall button.
+- [x] Selected recall screens retain the skill context and offer a return to its overview. Viewing the schedule does not start a session or change evidence.
+- [x] Repair displays the cited snapshot passage and locator without a disclosure. Website sources open separately with a new-tab label; notes/PDF excerpts remain usable without an external URL. Worked examples are optional disclosures.
+- [x] Repair no longer autofocuses past its reading material. Completion returns to the same skill or its recall view and retains the assisted-practice/no-mastery-credit explanation.
+- [x] Regression coverage includes due/future/unscheduled/initial-quiz navigation, retained selected skill, safe source links, visible excerpts, and completed-practice destinations. Browser checks confirmed Today → repair → same skill → selected due recall and a future schedule, plus 320px overflow and keyboard disclosure.
+- [ ] Run the full automated browser suite (updated learning-loop regression included). No live repair submission or new recall was performed in this slice; saved evidence was not modified.
+- [ ] Next: synchronize the public demo with the quiz feedback and repair experience. AI remains deferred.
+
+No stack, dependency, policy, or database changes in this slice.
+
+### Well learned milestone checkpoint — 2026-09-09
+
+- [x] The skill overview shows one next learning step and a collapsed **What’s still needed** checklist. No misleading overall mastery percentage or guaranteed completion date.
+- [x] Checklist states come directly from the same eight policy gates that award Well learned: coverage, repeated success per idea, spacing, latest recall quality, recent consistency, stable intervals, evidence confidence, and transfer.
+- [x] Existing skills get a read-only, owner-checked projection from current-scope evidence and schedules; no data backfill or rewritten history is required. Unsupported policy versions do not receive a fabricated checklist.
+- [x] Recall results retain their milestone snapshot. Crossing into Well learned shows a quiet achievement; ordinary refreshes do not present a new achievement. Historical feedback is explicitly labelled as evidence/scope when the recall was saved.
+- [x] Well learned skill pages distinguish Refresh due and explain that overdue time alone does not erase evidence. All details disclose self-rating and the meaning of the performance index.
+- [x] Empty scope, every failed policy gate, elapsed time without practice, overdue retention, legacy summaries, and ownership have regression coverage. The original `mastery-v1` thresholds are unchanged.
+- [x] Desktop and 320px skill-page checks passed, including keyboard disclosure and zero horizontal overflow. Earned and refresh states have renderer/policy tests; the full browser suite and a live milestone-earning recall remain unrun.
+- [x] Follow-up: easier cited repair and direct recall access shipped in the checkpoint above. Public demo alignment remains next; AI remains deferred.
+
+This slice adds no dependencies, framework changes, or database migration. The
+previous quiz-feedback migration and unpushed changes remain part of the local work.
+
+### Quiz feedback checkpoint — 2026-09-07
+
+- [x] Initial quizzes and recalls offer **I don’t know** without requiring fabricated text or a random choice. Revealed unknown answers remain locked and resume after reload.
+- [x] Both short-response screens share Missed / Partial / Meets, concise anchors, and an explicit self-rated (not AI-graded) label. Recall asks effort only after Meets; an incorrect objective answer cannot receive a successful rating.
+- [x] Partial answers expose source review in the initial quiz and follow recall's retry/repair path. The partial assessment is retained in the saved recall result; current `schedule-v1`/`mastery-v1` conservatively map it to AGAIN. This does **not** implement the future 0.35 partial-credit policy below.
+- [x] Unknown initial answers persist as `{ skipped: true }`. Unknown recalls persist as a revealed empty locked answer, save an AGAIN retry and gap, and create **no mastery evidence**; they cannot resolve a gap or count as transfer success.
+- [x] Database migration `20260908010000_allow_explicit_unknown_answers` preserves existing rows, foreign keys, indexes, and dependent triggers while permitting explicit unknowns. Database constraints allow an empty attempt only with AGAIN. Apply migrations before serving the new code; no dependency or framework change.
+- [x] 414 tests across 52 files, strict lint, type checking, production build, desktop/320px feedback checks, initial skip/reload/completion and recall skip/reload/save passed. Migration replay and row-preservation checks passed against a local backup.
+- [ ] Run the full automated Playwright suite; the updated recall regression includes an unanswered transfer question and reload recovery but has not been run as a suite.
+- [ ] Next slice: make **Well learned** a meaningful milestone and show the evidence still needed. Follow with easier cited repair, an explicit recall entry alongside Today’s repair recommendation, and consistent public-demo feedback. AI remains deferred.
 
 ### Connection usability fixes — 2026-09-08
 

@@ -24,6 +24,7 @@ describe("RemediationForm", () => {
     expect(html).toContain('name="remediationRevisionId"')
     expect(html).toContain('value="revision-a"')
     expect(html).toContain("Finish practice")
+    expect(html).not.toContain("autofocus")
   })
 
   it("states that assisted practice does not raise mastery", () => {
@@ -40,6 +41,9 @@ describe("RemediationForm", () => {
 
     expect(html).toContain("prepares you for your next recall")
     expect(html).toContain("it does not raise mastery")
-    expect(html).toContain("Back to Today")
+    expect(html).toContain("Back to skill")
+    expect(html).toContain('href="/skills/goal-skill-a"')
+    expect(html).toContain('href="/today?skill=goal-skill-a"')
+    expect(html).toContain("View recall")
   })
 })

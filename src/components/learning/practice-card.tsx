@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button"
 import { ButtonLink } from "@/components/ui/button-link"
 import { PaperCard, PaperCardContent } from "@/components/ui/paper-card"
 import { Textarea } from "@/components/ui/textarea"
+import { AnswerAssessmentPicker, type AnswerAssessment } from "@/components/learning/answer-assessment"
+import { MasteryMilestonePanel } from "@/components/learning/mastery-milestone"
+import type { MasteryMilestone } from "@/lib/learning/types"
 
 type Phase = "PROMPT" | "DRAFTING" | "REVEALED" | "SAVING" | "COMPLETED"
 type Rating = "AGAIN" | "HARD" | "GOOD" | "EASY"
@@ -15,22 +18,32 @@ type SaveStatus = "idle" | "saving" | "saved"
 
 const RATINGS: Array<{ value: Rating; label: string; anchor: string }> = [
   { value: "AGAIN", label: "Missed", anchor: "Try again" },
-  { value: "HARD", label: "Correct · hard", anchor: "High effort" },
-  { value: "GOOD", label: "Correct", anchor: "Normal effort" },
-  { value: "EASY", label: "Correct · easy", anchor: "Low effort" },
+  { value: "HARD", label: "Hard", anchor: "High effort" },
+  { value: "GOOD", label: "Good", anchor: "Normal effort" },
+  { value: "EASY", label: "Easy", anchor: "Low effort" },
 ]
 
 function displayRating(rating: Rating) {
   return RATINGS.find((option) => option.value === rating)?.label ?? displayStage(rating)
 }
 
+function displayOutcome(summary: PracticeSummary) {
+  if (summary.skipped) return "Not answered"
+  if (summary.assessment && summary.assessment !== "MEETS") return displayStage(summary.assessment)
+  if (summary.objectiveCorrect && summary.rating === "AGAIN") return "Guessed"
+  return `${summary.assessment === "MEETS" ? "Meets · " : ""}${summary.rating ? displayRating(summary.rating) : "Review"}`
+}
+
 export type PracticeSummary = {
+  milestone?: MasteryMilestone
   skillTitle: string
   goalSkillId?: string
   stageBefore: string
   stageAfter: string
   confidence: string
   rating?: Rating
+  assessment?: AnswerAssessment
+  skipped?: boolean
   evidenceWeight?: number
   timezone?: string
   nextReviewAt: string
@@ -107,7 +120,7 @@ function Summary({
   const router = useRouter()
   const changed = summary.stageBefore !== summary.stageAfter
   const evidenceLabel =
-    summary.evidenceWeight === 0.5
+    summary.skipped ? "no learning credit" : summary.evidenceWeight === 0.5
       ? "first review"
       : summary.evidenceWeight === 1
         ? "review on a new day"
@@ -122,7 +135,7 @@ function Summary({
           {displayStage(summary.stageAfter)}
         </Badge>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{summary.skillTitle}</h1>
-        <p className="text-muted-foreground">{changed ? summary.reason : "Review saved."}</p>
+        <p className="text-muted-foreground">{summary.stageAfter === "WELL_LEARNED" && changed ? "Milestone reached." : changed ? summary.reason : "Review saved."}</p>
       </div>
 
       <dl className="grid gap-5 border-y border-border py-5 sm:grid-cols-2">
@@ -144,11 +157,13 @@ function Summary({
         </div>
       </dl>
 
+      <MasteryMilestonePanel milestone={summary.milestone} stage={summary.stageAfter} achieved={changed && summary.stageAfter === "WELL_LEARNED"} snapshot />
       {summary.rating ? (
         <details className="text-sm">
           <summary className="min-h-11 cursor-pointer py-2 font-medium">Review details</summary>
           <p className="pb-2 text-muted-foreground">
-            {displayRating(summary.rating)} · {summary.objectiveCorrect === undefined ? "self-rated" : "checked"}
+            {displayOutcome(summary)}
+            {!summary.skipped ? ` · ${summary.objectiveCorrect === undefined ? "self-rated" : "checked"}` : ""}
             {summary.isTransfer ? " · new angle" : ""}
             {evidenceLabel ? ` · ${evidenceLabel}` : ""}
           </p>
@@ -213,6 +228,7 @@ export function PracticeCard({
   initialObjectiveCorrect,
 }: PracticeCardProps) {
   const [answer, setAnswer] = useState(initialAnswer)
+  const [assessment, setAssessment] = useState<AnswerAssessment | null>(null)
   const [phase, setPhase] = useState<Phase>(initialPhase)
   const [referenceAnswer, setReferenceAnswer] = useState(initialReferenceAnswer)
   const [explanation, setExplanation] = useState(initialExplanation)
@@ -300,8 +316,8 @@ export function PracticeCard({
     )
   }
 
-  const reveal = async () => {
-    if (!answer.trim() || isBusy) return
+  const reveal = async (skipped = false) => {
+    if ((!skipped && !answer.trim()) || isBusy) return
     setIsBusy(true)
     setError(undefined)
 
@@ -314,7 +330,7 @@ export function PracticeCard({
       const response = await fetch(`/api/practice/items/${itemId}/reveal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answer, expectedVersion: versionRef.current }),
+        body: JSON.stringify({ answer: skipped ? "" : answer, ...(skipped ? { skipped: true } : {}), expectedVersion: versionRef.current }),
       })
       const payload = await parseResponseJson<CheckpointResponse>(response)
 
@@ -350,6 +366,7 @@ export function PracticeCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           rating,
+          ...(assessment && answer !== "" && objectiveCorrect === undefined ? { assessment } : {}),
           idempotencyKey: gradeKeyRef.current,
           expectedVersion: versionRef.current,
         }),
@@ -438,7 +455,7 @@ export function PracticeCard({
             ))}
           </div>
         </fieldset>
-      ) : (
+      ) : answer !== "" || phase === "PROMPT" || phase === "DRAFTING" ? (
         <div>
           <div className="mb-1.5 flex min-h-5 items-center justify-between gap-3 text-sm">
             <label htmlFor="recall-answer" className="font-medium">
@@ -465,9 +482,10 @@ export function PracticeCard({
             autoFocus={phase === "PROMPT" || phase === "DRAFTING"}
           />
         </div>
-      )}
+      ) : null}
 
       {phase === "PROMPT" || phase === "DRAFTING" ? (
+        <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           size="lg"
@@ -476,8 +494,10 @@ export function PracticeCard({
           isLoading={isBusy}
           disabled={!answer.trim() || isBusy}
         >
-          {responseType === "MULTIPLE_CHOICE" ? "Check answer" : "Reveal answer"}
+          {responseType === "MULTIPLE_CHOICE" ? "Check answer" : "Compare answer"}
         </Button>
+        <Button type="button" variant="ghost" disabled={isBusy} onClick={() => void reveal(true)}>I don’t know</Button>
+        </div>
       ) : (
         <div className="space-y-5" aria-live="polite">
           <PaperCard
@@ -489,17 +509,18 @@ export function PracticeCard({
           >
             <PaperCardContent className="space-y-3">
               <p className="text-sm font-medium text-muted-foreground">
-                {objectiveCorrect === undefined
-                  ? "Reference"
+                {answer === "" ? "Not answered" : objectiveCorrect === undefined
+                  ? "Reference answer"
                   : objectiveCorrect
                     ? "Correct"
-                    : "Not quite"}
+                    : "Missed"}
               </p>
+              {answer === "" ? <p className="text-sm text-muted-foreground">No learning credit. Review this explanation, then try again later.</p> : null}
               <p className="whitespace-pre-wrap leading-7">{referenceAnswer}</p>
               {explanation ? <p className="text-sm leading-6 text-muted-foreground">{explanation}</p> : null}
             </PaperCardContent>
           </PaperCard>
-          {objectiveCorrect === false ? (
+          {objectiveCorrect === false || answer === "" ? (
             <Button
               type="button"
               size="lg"
@@ -509,22 +530,28 @@ export function PracticeCard({
               Continue
             </Button>
           ) : (
-            <fieldset disabled={isBusy || phase === "SAVING"}>
+            <div className="space-y-4">
+            {objectiveCorrect === undefined ? <AnswerAssessmentPicker value={assessment} onChange={setAssessment} disabled={isBusy || phase === "SAVING"} /> : null}
+            {assessment === "MISSED" || assessment === "PARTIAL" ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">{assessment === "PARTIAL" ? "Some ideas are missing. This stays on the retry path." : "Review the explanation, then try again later."}</p>
+                <Button type="button" onClick={() => void grade("AGAIN")} disabled={isBusy || phase === "SAVING"}>Continue</Button>
+              </div>
+            ) : objectiveCorrect || assessment === "MEETS" ? <fieldset disabled={isBusy || phase === "SAVING"}>
               <legend className="mb-3 text-sm font-medium">
-                {objectiveCorrect ? "How did that feel?" : "Did your answer match?"}
+                How much effort did it take?
               </legend>
-              <div className={`grid grid-cols-2 gap-3 ${objectiveCorrect ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
-                {RATINGS.filter((rating) => !objectiveCorrect || rating.value !== "AGAIN").map((rating) => (
+              <div className="grid grid-cols-3 gap-2">
+                {RATINGS.filter((rating) => rating.value !== "AGAIN").map((rating) => (
                   <Button
                     key={rating.value}
                     type="button"
                     variant="outline"
-                    className="min-h-12"
+                    className="min-h-14 min-w-0 whitespace-normal px-2"
                     onClick={() => void grade(rating.value)}
                     disabled={isBusy || phase === "SAVING"}
                   >
-                    <span>{rating.label}</span>
-                    <span className="sr-only">: {rating.anchor}</span>
+                    <span>{rating.label}<span className="block text-xs font-normal text-muted-foreground">{rating.anchor}</span></span>
                   </Button>
                 ))}
               </div>
@@ -539,7 +566,8 @@ export function PracticeCard({
                   I guessed
                 </Button>
               ) : null}
-            </fieldset>
+            </fieldset> : null}
+            </div>
           )}
         </div>
       )}

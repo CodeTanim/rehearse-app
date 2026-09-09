@@ -78,6 +78,11 @@ function submittedAnswers() {
 }
 
 describe("initial quiz server validation", () => {
+  it("accepts explicit unknown answers but rejects credit for them", () => {
+    const answers = submittedAnswers().map((answer) => ({ ...answer, response: { skipped: true as const }, result: { assessment: "MISSED" as const, isCorrect: null } }))
+    expect(canonicalizeInitialQuizAnswers(pack(), answers).every((answer) => "skipped" in answer.response)).toBe(true)
+    expect(() => canonicalizeInitialQuizAnswers(pack(), answers.map((answer) => ({ ...answer, result: { assessment: "MEETS", isCorrect: null } })))).toThrow("cannot receive credit")
+  })
   it("turns every pack question into recall inventory while staggering new angles", () => {
     const now = new Date("2026-09-04T12:00:00.000Z")
     const inventory = buildRecallInventory(pack(), "pack-version-1", now)

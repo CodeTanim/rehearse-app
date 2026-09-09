@@ -97,6 +97,7 @@ export interface MasteryExplanation {
 }
 
 export interface GoalSkillReadinessResult {
+  milestone?: MasteryMilestone
   ruleVersion: string
   stage: EvidenceStage
   confidence: EvidenceConfidence
@@ -115,4 +116,9 @@ export interface GoalSkillReadinessResult {
   transferReviewDays: number
   explanation: MasteryExplanation
   computedAt: Date
+}
+
+export interface MasteryMilestone {
+  ruleVersion: string
+  requirements: Array<{ id: string; label: string; met: boolean; detail: string; next: string }>
 }

@@ -25,6 +25,7 @@ const citationSchema = z.object({
   excerpt: z.string().min(1).max(600),
 }).strict()
 const responseSchema = z.union([
+  z.object({ skipped: z.literal(true) }).strict(),
   z.object({ selectedChoiceIndex: z.number().int().min(0).max(3) }).strict(),
   z.object({ text: z.string().trim().min(1).max(4_000) }).strict(),
 ])
@@ -58,7 +59,7 @@ type CanonicalAnswer = {
   competencyId: string
   questionType: "MULTIPLE_CHOICE" | "SHORT_RESPONSE"
   prompt: string
-  response: { selectedChoiceIndex: number } | { text: string }
+  response: { selectedChoiceIndex: number } | { text: string } | { skipped: true }
   result: {
     assessment: "MISSED" | "PARTIAL" | "MEETS"
     isCorrect: boolean | null
@@ -166,6 +167,13 @@ export function canonicalizeInitialQuizAnswers(
         "This quiz changed before it was saved. Reload and try again.",
         409,
       )
+    }
+
+    if ("skipped" in answer.response) {
+      if (answer.result.assessment !== "MISSED" || answer.result.isCorrect !== null) {
+        throw new InitialQuizServiceError("INVALID_ATTEMPT", "An unanswered question cannot receive credit.", 409)
+      }
+      return { ...answer, response: { skipped: true }, result: { assessment: "MISSED", isCorrect: null } }
     }
 
     if (question.type === "MULTIPLE_CHOICE") {

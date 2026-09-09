@@ -281,6 +281,51 @@ function prepareSuccessfulGrade(
 }
 
 describe("durable practice service", () => {
+  it("locks an explicit unknown choice without fabricating a selected option", async () => {
+    const { service, tx } = makeDatabase()
+    tx.practiceSessionItem.findFirst.mockResolvedValueOnce(ownedGeneratedCheckpointItem()).mockResolvedValueOnce({
+      responseCheckpoint: { phase: "REVEALED", lockedAnswer: "", version: 3, revealedAt: NOW },
+      questionRevision: { referenceAnswer: "Version cache keys.", explanation: null },
+      question: { generatedSpec: generatedMultipleChoiceSpec() },
+    })
+    tx.practiceResponseCheckpoint.updateMany.mockResolvedValue({ count: 1 })
+    const result = await service.reveal({ userId: "user-a", itemId: "item-a", answer: "", skipped: true, expectedVersion: 2 })
+    expect(result.checkpoint.lockedAnswer).toBe("")
+    expect(result).not.toHaveProperty("objectiveCorrect")
+    await expect(service.reveal({ userId: "user-a", itemId: "item-a", answer: "", expectedVersion: 2 })).rejects.toThrow("Write an answer")
+    await expect(service.reveal({ userId: "user-a", itemId: "item-a", answer: "1", skipped: true, expectedVersion: 2 })).rejects.toThrow("Write an answer")
+  })
+
+  it("saves an unknown recall for retry and repair without mastery evidence", async () => {
+    const context = makeDatabase()
+    prepareSuccessfulGrade(context, generatedGradeItem({ lockedAnswer: "" }))
+    const summary = await context.service.grade({ userId: "user-a", itemId: "item-a", rating: "AGAIN", expectedVersion: 2,
+      idempotencyKey: "a5a80d74-e1e8-45af-b68b-9ca31624676e" })
+    expect(summary).toMatchObject({ skipped: true, evidenceWeight: 0, rating: "AGAIN", gapId: "gap-a" })
+    expect(summary.stageAfter).toBe(summary.stageBefore)
+    expect(context.tx.masteryEvidence.create).not.toHaveBeenCalled()
+    expect(context.tx.attempt.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lockedAnswer: "" }) }))
+    expect(remediationMocks.resolveLearningGapFromRecallInTransaction).not.toHaveBeenCalled()
+  })
+
+  it.each(["HARD", "GOOD", "EASY"] as const)("rejects %s credit for skipped or partial responses", async (rating) => {
+    for (const skipped of [true, false]) {
+      const context = makeDatabase()
+      prepareSuccessfulGrade(context, generatedGradeItem({ lockedAnswer: skipped ? "" : "1" }))
+      await expect(context.service.grade({ userId: "user-a", itemId: "item-a", rating, ...(skipped ? {} : { assessment: "PARTIAL" as const }),
+        expectedVersion: 2, idempotencyKey: "a5a80d74-e1e8-45af-b68b-9ca31624676e" })).rejects.toThrow("cannot receive learning credit")
+      expect(context.tx.attempt.create).not.toHaveBeenCalled()
+    }
+  })
+
+  it("retains a partial self-assessment in the durable result on the retry path", async () => {
+    const context = makeDatabase()
+    prepareSuccessfulGrade(context, generatedShortResponseGradeItem())
+    const summary = await context.service.grade({ userId: "user-a", itemId: "item-a", rating: "AGAIN", assessment: "PARTIAL", expectedVersion: 2,
+      idempotencyKey: "a5a80d74-e1e8-45af-b68b-9ca31624676e" })
+    expect(summary).toMatchObject({ assessment: "PARTIAL", rating: "AGAIN" })
+    expect(context.tx.practiceSessionItem.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ resultJson: JSON.stringify(summary) }) }))
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     remediationMocks.createOrReopenRecallGapInTransaction.mockResolvedValue({
@@ -534,6 +579,7 @@ describe("durable practice service", () => {
 
     expect(transaction).toHaveBeenCalledTimes(1)
     expect(summary).toEqual({
+      milestone: expect.objectContaining({ ruleVersion: "mastery-v1", requirements: expect.any(Array) }),
       skillTitle: "Cache invalidation",
       goalSkillId: "goal-skill-a",
       stageBefore: "UNASSESSED",

@@ -98,6 +98,25 @@ function completeAnswers(): InitialQuizAnswerInput[] {
 }
 
 describe("InitialQuiz", () => {
+  it("records explicit unknown answers without fabricated text or credit", () => {
+    const questions = visibleInitialQuizQuestions(packFixture())
+    const payload = buildInitialQuizAttemptPayload({ attemptId: "attempt-1", goalSkillId: "skill-1", packVersionId: "pack-1",
+      startedAt: "2026-09-07T12:00:00.000Z", completedAt: "2026-09-07T12:01:00.000Z", questions,
+      answers: questions.map(({ questionIndex }) => ({ questionIndex, response: { skipped: true } })) })
+    expect(payload.answers.every((answer) => "skipped" in answer.response && answer.result.assessment === "MISSED" && answer.result.isCorrect === null)).toBe(true)
+  })
+
+  it("restores skipped feedback for either question type without a self-rating", () => {
+    for (const questionPosition of [0, 1]) {
+      const html = renderToStaticMarkup(createElement(InitialQuiz, { goalSkillId: "skill", packVersionId: "pack",
+        questions: visibleInitialQuizQuestions(packFixture()), initialDraft: { attemptId: "attempt", startedAt: "2026-09-07T12:00:00Z", version: 1,
+          state: { questionPosition, phase: "feedback", skipped: true, selectedChoiceIndex: null, shortResponse: "", shortAssessment: null,
+            completedAnswers: questionPosition ? [{ questionIndex: 0, response: { skipped: true } }] : [], completedAt: null } } }))
+      expect(html).toContain("Not answered")
+      expect(html).not.toContain("How did your answer compare?")
+      expect(html).toContain("Next")
+    }
+  })
   it("renders one initial question and never exposes reserved transfer probes", () => {
     const html = renderToStaticMarkup(
       createElement(InitialQuiz, {

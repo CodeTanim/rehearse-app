@@ -32,12 +32,14 @@ export const revealSchema = checkpointSchema.extend({
   answer: z
     .string()
     .trim()
-    .min(1, "Write an answer before revealing the reference.")
     .max(10_000, "Answer must be 10,000 characters or fewer."),
-})
+  skipped: z.boolean().optional(),
+}).refine((value) => value.skipped ? value.answer === "" : value.answer.length > 0,
+  "Write an answer or choose I don’t know.")
 
 export const gradeSchema = z.object({
   rating: z.enum(["AGAIN", "HARD", "GOOD", "EASY"]),
+  assessment: z.enum(["MISSED", "PARTIAL", "MEETS"]).optional(),
   idempotencyKey: z.string().uuid(),
   expectedVersion: z.number().int().min(0),
 })

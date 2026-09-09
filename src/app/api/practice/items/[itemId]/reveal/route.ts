@@ -38,6 +38,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       // Zod validates a trimmed view, but the immutable pre-reveal answer must
       // preserve exactly what the learner submitted.
       answer: rawAnswer,
+      ...(validated.data.skipped ? { skipped: true } : {}),
       expectedVersion: validated.data.expectedVersion,
     })
     return NextResponse.json(result)

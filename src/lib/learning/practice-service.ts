@@ -22,6 +22,7 @@ import type {
   EvidenceStage,
   GoalSkillReadinessResult,
   MasteryEvidenceInput,
+  MasteryMilestone,
   ReviewRating,
 } from "@/lib/learning/types"
 import { prisma } from "@/lib/prisma"
@@ -40,12 +41,15 @@ export type PracticeCheckpointSnapshot = {
 }
 
 export type PracticeSummary = {
+  milestone?: MasteryMilestone
   skillTitle: string
   goalSkillId?: string
   stageBefore: EvidenceStage
   stageAfter: EvidenceStage
   confidence: EvidenceConfidence
   rating?: ReviewRating
+  assessment?: "MISSED" | "PARTIAL" | "MEETS"
+  skipped?: boolean
   evidenceWeight?: number
   timezone?: string
   nextReviewAt: string
@@ -405,9 +409,10 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
       userId: string
       itemId: string
       answer: string
+      skipped?: boolean
       expectedVersion: number
     }) {
-      if (input.answer.trim().length === 0 || input.answer.length > 10_000) {
+      if ((input.skipped ? input.answer !== "" : input.answer.trim().length === 0) || input.answer.length > 10_000) {
         throw invalidState("Write an answer before revealing the reference.")
       }
       const revealedAt = copyServerTime(clock)
@@ -418,7 +423,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
           input.userId,
           input.itemId,
         )
-        if (checkpoint.generatedSpec?.responseType === "MULTIPLE_CHOICE") {
+        if (!input.skipped && checkpoint.generatedSpec?.responseType === "MULTIPLE_CHOICE") {
           const choices = parseGeneratedChoices(checkpoint.generatedSpec.choicesJson)
           if (selectedChoice(input.answer, choices.length) === null) {
             throw invalidState("Choose an answer before checking it.")
@@ -475,7 +480,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
           },
         })
         if (
-          !revealed?.responseCheckpoint?.lockedAnswer ||
+          revealed?.responseCheckpoint?.lockedAnswer == null ||
           !revealed.responseCheckpoint.revealedAt
         ) {
           throw invalidState("The answer could not be locked before reveal.")
@@ -515,6 +520,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
       userId: string
       itemId: string
       rating: ReviewRating
+      assessment?: "MISSED" | "PARTIAL" | "MEETS"
       idempotencyKey: string
       expectedVersion: number
     }): Promise<PracticeSummary> {
@@ -672,7 +678,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
           if (!checkpoint) throw invalidState("This review has already been completed.")
           if (
             checkpoint.phase !== "REVEALED" ||
-            !checkpoint.lockedAnswer ||
+            checkpoint.lockedAnswer === null ||
             !checkpoint.revealedAt
           ) {
             throw invalidState("Reveal the reference before grading.")
@@ -723,8 +729,17 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
           }
 
           const generatedSpec = item.question.generatedSpec
+          // Empty is reserved for an explicit, durably revealed "I don't know".
+          // Ordinary empty submissions are rejected at both route and service boundaries.
+          const skipped = checkpoint.lockedAnswer === ""
+          if ((skipped || (input.assessment && input.assessment !== "MEETS")) && input.rating !== "AGAIN") {
+            throw invalidState("An unanswered or incomplete answer cannot receive learning credit.")
+          }
+          if (input.assessment === "MEETS" && input.rating === "AGAIN") {
+            throw invalidState("Choose an effort rating for an answer that meets the reference.")
+          }
           let objectiveCorrect: boolean | undefined
-          if (generatedSpec?.responseType === "MULTIPLE_CHOICE") {
+          if (!skipped && generatedSpec?.responseType === "MULTIPLE_CHOICE") {
             const choices = parseGeneratedChoices(generatedSpec.choicesJson)
             const choice = selectedChoice(checkpoint.lockedAnswer, choices.length)
             if (choice === null || generatedSpec.correctChoiceIndex === null) {
@@ -883,7 +898,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
             })),
           )
 
-          const evidenceWeight = getEvidenceWeight(
+          const evidenceWeight = skipped ? 0 : getEvidenceWeight(
             existingEvidence.filter(
               (evidence) => evidence.conceptVersionId === primaryConceptVersionId,
             ),
@@ -918,7 +933,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
           const readinessAfter = projectGoalSkillReadiness({
             requiredConceptVersionIds,
             activeQuestionConceptVersionIds,
-            evidence: [...existingEvidence, newEvidence],
+            evidence: skipped ? existingEvidence : [...existingEvidence, newEvidence],
             activeSchedules: schedulesAfter,
             computedAt: occurredAt,
           })
@@ -998,7 +1013,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
               confidenceAfter: readinessAfter.confidence,
             },
           })
-          await transaction.masteryEvidence.create({
+          if (!skipped) await transaction.masteryEvidence.create({
             data: {
               userId: input.userId,
               attemptId: attempt.id,
@@ -1076,6 +1091,7 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
           const sessionComplete = remainingItems === 0
           const completedCount = item.session.targetCount - remainingItems
           const summary: PracticeSummary = {
+            milestone: readinessAfter.milestone,
             skillTitle: goalSkill.skillNode.title,
             goalSkillId: goalSkill.id,
             stageBefore: readinessBefore.stage,
@@ -1083,6 +1099,8 @@ export function createPracticeService(database: PrismaClient, clock: Clock = () 
             confidence: readinessAfter.confidence,
             rating: input.rating,
             evidenceWeight,
+            ...(skipped ? { skipped: true } : {}),
+            ...(input.assessment ? { assessment: input.assessment } : {}),
             timezone: item.session.user.timezone,
             nextReviewAt: transition.after.dueAt.toISOString(),
             reason: reasonFor(readinessAfter),

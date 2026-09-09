@@ -11,6 +11,14 @@ const questions: VisibleInitialQuizQuestion[] = [0, 1].map((index) => ({
 }))
 
 describe("quiz draft integrity", () => {
+  it("restores explicit skipped feedback and previous skipped questions", () => {
+    const state = { ...EMPTY_QUIZ_DRAFT, questionPosition: 1, skipped: true, phase: "feedback" as const,
+      completedAnswers: [{ questionIndex: 0, response: { skipped: true as const } }] }
+    expect(validateQuizDraft(quizDraftStateSchema.parse(state), questions)).toEqual(state)
+    expect(() => validateQuizDraft({ ...state, shortAssessment: "MEETS" }, questions)).toThrow("skipped")
+    expect(() => validateQuizDraft({ ...state, shortResponse: "fabricated" }, questions)).toThrow("skipped")
+    expect(() => validateQuizDraft({ ...state, phase: "answering" }, questions)).toThrow("skipped")
+  })
   it("retains an unfinished answer and the exact feedback phase", () => {
     const state = { ...EMPTY_QUIZ_DRAFT, questionPosition: 1, shortResponse: "Keys have values", phase: "feedback" as const,
       completedAnswers: [{ questionIndex: 0, response: { selectedChoiceIndex: 0 } }] }

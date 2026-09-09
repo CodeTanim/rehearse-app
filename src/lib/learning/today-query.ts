@@ -42,6 +42,7 @@ export type TodayData =
       skillTitle: string
       gapLabel: string
       href: string
+      recall?: { goalSkillId: string; title: string }
     }
   | { kind: "RESUME"; sessionId: string; leaf: TodayLeaf }
   | { kind: "REVIEW"; leaf: TodayLeaf }
@@ -184,6 +185,10 @@ export function selectTodayData(
     }
   }
 
+  const scheduled = candidates
+    .filter((candidate) => candidate.lifecycle === "ACTIVE" && candidate.dueAt)
+    .sort(scheduledOrder)
+  const due = scheduled.find((candidate) => candidate.dueAt!.getTime() <= now.getTime())
   const strengthen = [...strengthenCandidates].sort(strengthenOrder)[0]
   if (strengthen) {
     return {
@@ -193,13 +198,10 @@ export function selectTodayData(
       skillTitle: strengthen.skillTitle,
       gapLabel: strengthen.gapLabel,
       href: `/skills/${strengthen.goalSkillId}/strengthen/${strengthen.gapId}`,
+      ...(due ? { recall: { goalSkillId: due.goalSkillId, title: due.title } } : {}),
     }
   }
 
-  const scheduled = candidates
-    .filter((candidate) => candidate.lifecycle === "ACTIVE" && candidate.dueAt)
-    .sort(scheduledOrder)
-  const due = scheduled.find((candidate) => candidate.dueAt!.getTime() <= now.getTime())
   if (due) return { kind: "REVIEW", leaf: toLeaf(due, due.dueAt!, now) }
 
   const current = scheduled[0]

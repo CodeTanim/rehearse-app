@@ -40,6 +40,22 @@ function jsonRequest(path: string, method: "PATCH" | "POST", body: unknown) {
 }
 
 describe("practice route contracts", () => {
+  it("only accepts an empty reveal with an explicit skip flag", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "user-a" } })
+    const path = "/api/practice/items/item-a/reveal"
+    expect((await reveal(jsonRequest(path, "POST", { answer: "", expectedVersion: 2 }), context)).status).toBe(400)
+    expect(mocks.reveal).not.toHaveBeenCalled()
+    mocks.reveal.mockResolvedValue({ checkpoint: { lockedAnswer: "", phase: "REVEALED", version: 3 }, referenceAnswer: "Reference" })
+    expect((await reveal(jsonRequest(path, "POST", { answer: "", skipped: true, expectedVersion: 2 }), context)).status).toBe(200)
+    expect(mocks.reveal).toHaveBeenCalledWith({ userId: "user-a", itemId: "item-a", answer: "", skipped: true, expectedVersion: 2 })
+  })
+
+  it("passes the explicit short-answer assessment to the grading service", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "user-a" } })
+    mocks.grade.mockResolvedValue({ assessment: "PARTIAL", rating: "AGAIN" })
+    await grade(jsonRequest("/api/practice/items/item-a/grade", "POST", { rating: "AGAIN", assessment: "PARTIAL", expectedVersion: 2, idempotencyKey: IDEMPOTENCY_KEY }), context)
+    expect(mocks.grade).toHaveBeenCalledWith(expect.objectContaining({ assessment: "PARTIAL", rating: "AGAIN" }))
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.auth.mockResolvedValue({ user: { id: "user-a" } })

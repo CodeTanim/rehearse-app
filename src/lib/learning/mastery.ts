@@ -331,21 +331,34 @@ export function projectGoalSkillReadiness({
     successfulFullWeightEvidence.length >= 3 &&
     successfulFullWeightDays >= 2 &&
     everyLatestNotAgain
-  const wellLearned =
-    coverageComplete &&
-    everyConceptHasTwoSuccessfulDays &&
-    distinctDays.length >= 3 &&
-    spanDays >= 14 &&
-    everyLatestGoodOrEasy &&
-    sessionPerformance.completedSessions >= 3 &&
-    sessionPerformance.index !== null &&
-    sessionPerformance.index >= 0.85 &&
-    medianIntervalMinutes !== null &&
-    medianIntervalMinutes >= WELL_LEARNED_INTERVAL_MINUTES &&
-    confidence === "HIGH" &&
-    successfulTransferFamilies.size >= 2 &&
-    successfulTransferSessions.size >= 2 &&
-    successfulTransferDays.size >= 2
+  // These are the policy gates themselves, not a separately maintained UI score.
+  const requirements = [
+    { id: "coverage", label: "Cover the skill", met: coverageComplete,
+      detail: `${coveredSet.size} of ${requiredConcepts.length} required ideas have active questions.`,
+      next: "Complete skill setup so every required idea has a question." },
+    { id: "concepts", label: "Recall every idea", met: everyConceptHasTwoSuccessfulDays,
+      detail: `${perConcept.filter((concept) => concept.hasTwoSuccessfulDays).length} of ${requiredConcepts.length} ideas recalled successfully on at least 2 days.`,
+      next: "Recall each required idea successfully on two different days." },
+    { id: "spacing", label: "Remember over time", met: distinctDays.length >= 3 && spanDays >= 14,
+      detail: `${distinctDays.length} review days (need 3), spanning ${spanDays} days (need 14).`,
+      next: "Return for scheduled recalls across at least 3 days spanning 14 days. Waiting alone adds no evidence." },
+    { id: "latest", label: "Recall with confidence", met: everyLatestGoodOrEasy,
+      detail: `${perConcept.filter((concept) => concept.latestRating !== null && WELL_LEARNED_LATEST_RATINGS.has(concept.latestRating)).length} of ${requiredConcepts.length} ideas have a latest Good or Easy recall.`,
+      next: "Strengthen missed ideas, then recall them correctly with normal or low effort." },
+    { id: "performance", label: "Stay consistent", met: sessionPerformance.completedSessions >= 3 && sessionPerformance.index !== null && sessionPerformance.index >= 0.85,
+      detail: `${sessionPerformance.completedSessions} evidence-bearing sessions (need 3). Recent performance index: ${sessionPerformance.index === null ? "not available" : sessionPerformance.index} (need 0.85).`,
+      next: "Build consistent results across your latest three recall sessions." },
+    { id: "interval", label: "Retain it between recalls", met: medianIntervalMinutes !== null && medianIntervalMinutes >= WELL_LEARNED_INTERVAL_MINUTES,
+      detail: `Typical scheduled interval: ${medianIntervalMinutes === null ? "not scheduled" : `${Math.floor(medianIntervalMinutes / 1440)} days`} (need 21).`,
+      next: "Keep succeeding at scheduled recalls as the intervals grow." },
+    { id: "confidence", label: "Build enough evidence", met: confidence === "HIGH",
+      detail: `${fullWeightEvidence.length} full-weight recalls (need 8), on ${fullWeightDays} days (need 3), spanning ${spanDays} days (need 14).`,
+      next: "Keep your scheduled recalls. Same-day repeats do not add readiness weight." },
+    { id: "transfer", label: "Apply it in new situations", met: successfulTransferFamilies.size >= 2 && successfulTransferSessions.size >= 2 && successfulTransferDays.size >= 2,
+      detail: `${successfulTransferFamilies.size} distinct new-angle challenges, ${successfulTransferSessions.size} sessions, ${successfulTransferDays.size} days (need 2 of each).`,
+      next: "Answer two different new-angle challenges successfully, in separate recalls on different days." },
+  ]
+  const wellLearned = requirements.every((requirement) => requirement.met)
 
   const stage: EvidenceStage =
     relevantEvidence.length === 0
@@ -379,6 +392,7 @@ export function projectGoalSkillReadiness({
   })
 
   return {
+    milestone: { ruleVersion: MASTERY_RULE_VERSION, requirements },
     ruleVersion: MASTERY_RULE_VERSION,
     stage,
     confidence,

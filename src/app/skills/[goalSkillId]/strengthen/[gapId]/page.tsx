@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation"
 
 import { AppShell } from "@/components/app/app-shell"
 import { RemediationForm } from "@/components/learning/remediation-form"
+import { RepairSource } from "@/components/learning/repair-source"
 import { ButtonLink } from "@/components/ui/button-link"
 import { auth } from "@/lib/auth"
 import {
@@ -18,10 +19,9 @@ export default async function StrengthenPage({
 }: {
   params: Promise<{ goalSkillId: string; gapId: string }>
 }) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/auth/login")
-
   const { goalSkillId, gapId } = await params
+  const session = await auth()
+  if (!session?.user?.id) redirect(`/auth/login?returnTo=${encodeURIComponent(`/skills/${goalSkillId}/strengthen/${gapId}`)}`)
   let gap
   try {
     gap = await getOwnedLearningGap(session.user.id, goalSkillId, gapId)
@@ -39,13 +39,13 @@ export default async function StrengthenPage({
     <AppShell>
       <div className="mx-auto max-w-2xl space-y-5 py-4 sm:py-8">
         <ButtonLink
-          href="/today"
+          href={`/skills/${goalSkillId}`}
           variant="ghost"
           size="sm"
           className="-ml-2 w-fit"
         >
           <ArrowLeftIcon aria-hidden="true" className="size-4" />
-          Today
+          Back to skill
         </ButtonLink>
 
         <section className="relative overflow-hidden rounded-[2rem_2rem_2rem_0.75rem] border border-border bg-card p-5 shadow-[0_22px_60px_rgb(31_54_43/0.07)] sm:p-8">
@@ -74,38 +74,14 @@ export default async function StrengthenPage({
             <div className="rounded-[1.25rem_1.25rem_1.25rem_0.4rem] border border-border bg-muted/70 p-4 sm:p-5">
               <p className="text-sm leading-6">{remediation.explanation}</p>
               {remediation.workedExample ? (
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6">
-                  {remediation.workedExample}
-                </p>
+                <details className="mt-3 text-sm">
+                  <summary className="min-h-11 cursor-pointer py-2.5 font-medium">See an example</summary>
+                  <p className="whitespace-pre-wrap leading-6">{remediation.workedExample}</p>
+                </details>
               ) : null}
             </div>
 
-            <details className="group border-y border-border py-2 text-sm">
-              <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 py-2 font-medium">
-                Source
-                <span aria-hidden="true" className="text-muted-foreground transition-transform group-open:rotate-45">
-                  +
-                </span>
-              </summary>
-              <div className="space-y-2 pb-3">
-                <p className="break-words text-muted-foreground">
-                  {remediation.citation.sourceName} · {remediation.citation.locator}
-                </p>
-                <blockquote className="break-words border-l-2 border-primary pl-3 leading-6">
-                  “{remediation.citation.excerpt}”
-                </blockquote>
-                {remediation.citation.sourceUrl ? (
-                  <a
-                    href={remediation.citation.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block min-h-11 py-2.5 font-medium text-link underline underline-offset-4 hover:text-link-hover"
-                  >
-                    Open source
-                  </a>
-                ) : null}
-              </div>
-            </details>
+            <RepairSource citation={remediation.citation} />
 
             <RemediationForm
               goalSkillId={goalSkillId}
